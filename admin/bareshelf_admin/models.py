@@ -1,9 +1,11 @@
+from typing import Any
+
 from sqlalchemy import event
 
 from .database import db
 
 
-class Ingredient(db.Model):
+class Ingredient(db.Model):  # type: ignore
     __tablename__ = "ingredient"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -23,14 +25,14 @@ class Ingredient(db.Model):
         return f'<Ingredient "{self.name}">'
 
 
-class Preparation(db.Model):
+class Preparation(db.Model):  # type: ignore
     __tablename__ = "preparation"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String, nullable=False)
 
 
-class QuantityUnit(db.Model):
+class QuantityUnit(db.Model):  # type: ignore
     __tablename__ = "quantity_unit"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -38,7 +40,7 @@ class QuantityUnit(db.Model):
     abbreviation = db.Column(db.String, nullable=True)
 
 
-class Recipe(db.Model):
+class Recipe(db.Model):  # type: ignore
     __tablename__ = "recipe"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -51,7 +53,7 @@ class Recipe(db.Model):
         return f'<Recipe "{self.title}">'
 
 
-class RecipeIngredient(db.Model):
+class RecipeIngredient(db.Model):  # type: ignore
     __tablename__ = "recipe_ingredient"
 
     ingredient_id = db.Column(
@@ -72,9 +74,9 @@ class RecipeIngredient(db.Model):
     quantity_unit = db.relationship("QuantityUnit")
 
 
-def auto_slug(field):
-    @event.listens_for(field, "set")
-    def fn(target, value, initiator, event):
+def auto_slug(field: Any) -> None:
+    @event.listens_for(field, "set")  # type: ignore
+    def fn(target: Any, value: str, initiator: Any, event: Any) -> None:
         setattr(target, "slug", value.lower().replace(" ", "-"))
 
 

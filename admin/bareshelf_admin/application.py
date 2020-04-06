@@ -13,7 +13,7 @@ from .models import Ingredient, Recipe, RecipeIngredient
 admin = Admin(name="bareshelf.recipe", template_mode="bootstrap3")
 
 
-def create_app():
+def create_app() -> Flask:
     app = Flask(__name__)
 
     # set optional bootswatch theme
