@@ -5,6 +5,8 @@ services:
     environment:
       - ADMIN_SECRET_KEY=dYvSThPKxc1aAQok8WpjIqs/vtYioidKOx+VT5TZgIs
       - ADMIN_SQLALCHEMY_DATABASE_URL=postgresql://bareshelf:password@db/bareshelf
+    volumes:
+      - ./admin:/opt/app
     ports:
       - "127.0.0.1:6001:6001"
 
