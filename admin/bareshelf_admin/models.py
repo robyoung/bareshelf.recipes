@@ -30,13 +30,6 @@ class Ingredient(db.Model):  # type: ignore
         return f'<Ingredient "{self.name}">'
 
 
-class Preparation(db.Model):  # type: ignore
-    __tablename__ = "preparation"
-
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name = db.Column(db.String, nullable=False)
-
-
 class QuantityUnit(db.Model):  # type: ignore
     __tablename__ = "quantity_unit"
 
@@ -70,17 +63,14 @@ class RecipeIngredient(db.Model):  # type: ignore
         db.Integer, db.ForeignKey("ingredient.id"), primary_key=True
     )
     recipe_id = db.Column(db.Integer, db.ForeignKey("recipe.id"), primary_key=True)
-    preparation_id = db.Column(
-        db.Integer, db.ForeignKey("preparation.id"), nullable=True
-    )
     quantity_unit_id = db.Column(
         db.Integer, db.ForeignKey("quantity_unit.id"), nullable=True
     )
     quantity = db.Column(db.Numeric, nullable=True)
+    description = db.Column(db.String, nullable=False)
 
     recipe = db.relationship("Recipe", back_populates="ingredients")
     ingredient = db.relationship("Ingredient", back_populates="recipe_ingredients")
-    preparation = db.relationship("Preparation")
     quantity_unit = db.relationship("QuantityUnit")
 
 
