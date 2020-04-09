@@ -1,8 +1,8 @@
 """initial migration
 
-Revision ID: c7eccf73b3f1
+Revision ID: c9da43bf4dcc
 Revises: 
-Create Date: 2020-04-08 08:51:31.426095
+Create Date: 2020-04-09 08:30:49.174414
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'c7eccf73b3f1'
+revision = 'c9da43bf4dcc'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -45,15 +45,16 @@ def upgrade():
     op.create_index(op.f('ix_recipe_slug'), 'recipe', ['slug'], unique=True)
     op.create_index(op.f('ix_recipe_url'), 'recipe', ['url'], unique=True)
     op.create_table('recipe_ingredient',
-    sa.Column('ingredient_id', sa.Integer(), nullable=False),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('recipe_id', sa.Integer(), nullable=False),
+    sa.Column('ingredient_id', sa.Integer(), nullable=True),
     sa.Column('quantity_unit_id', sa.Integer(), nullable=True),
     sa.Column('quantity', sa.Numeric(), nullable=True),
     sa.Column('description', sa.String(), nullable=False),
     sa.ForeignKeyConstraint(['ingredient_id'], ['ingredient.id'], ),
     sa.ForeignKeyConstraint(['quantity_unit_id'], ['quantity_unit.id'], ),
     sa.ForeignKeyConstraint(['recipe_id'], ['recipe.id'], ),
-    sa.PrimaryKeyConstraint('ingredient_id', 'recipe_id')
+    sa.PrimaryKeyConstraint('id')
     )
     # ### end Alembic commands ###
 
