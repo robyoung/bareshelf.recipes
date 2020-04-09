@@ -11,7 +11,8 @@ RUN apt-get update \
 # Python dependencies
 RUN pip3 install -U pip poetry
 COPY pyproject.toml poetry.lock ./
-RUN poetry config virtualenvs.create false && poetry install --no-dev
+ARG POETRY_FLAGS="--no-dev"
+RUN poetry config virtualenvs.create false && poetry install ${POETRY_FLAGS}
 
 COPY . .
 

@@ -1,7 +1,10 @@
 version: "3"
 services:
   admin:
-    build: ./admin
+    build:
+      context: ./admin
+      args:
+        - POETRY_FLAGS=
     environment:
       - ADMIN_SECRET_KEY=dYvSThPKxc1aAQok8WpjIqs/vtYioidKOx+VT5TZgIs
       - ADMIN_SQLALCHEMY_DATABASE_URL=postgresql://bareshelf:password@db/bareshelf
