@@ -24,7 +24,6 @@ class Ingredient(db.Model, Getters):  # type: ignore
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String, nullable=False)
 
-    # TODO: maybe just do this with namespaced slug like pasta/fusilli
     parent_id = db.Column(db.Integer, db.ForeignKey("ingredient.id"), nullable=True)
 
     recipes = db.relationship("Recipe", secondary="recipe_ingredient", lazy="subquery",)

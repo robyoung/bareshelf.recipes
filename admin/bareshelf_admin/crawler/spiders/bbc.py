@@ -48,8 +48,6 @@ class BBCRecipeSpider(scrapy.Spider, BBCPaginationMixin):  # type: ignore
                 self._get_ingredient(response, ingredient)
                 for ingredient in recipe.css("li.recipe-ingredients__list-item")
             ]
-            # TODO: parse ingredient from description. this loses about 20% of recipes
-            # TODO: add them anyway but make ingredient relation nullable
             if all(ingredient["url"] is not None for ingredient in ingredients):
                 yield {
                     "title": recipe.css("h1::text").get(),

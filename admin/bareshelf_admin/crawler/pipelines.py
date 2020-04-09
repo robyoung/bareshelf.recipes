@@ -67,16 +67,19 @@ class SQLAlchemyPipeline:
 
         lookup = {ingredient["url"]: ingredient for ingredient in ingredients}
 
-        # TODO: needs work to allow for partial parses
         for ingredient in instance.ingredients:
-            ingredient.description = lookup.pop(ingredient.url)["description"]
+            lookup_item = lookup.pop(ingredient.url, None)
+            if lookup_item is None:
+                db.session.delete(ingredient)
+            else:
+                ingredient.ingredient = Ingredient.get_by_url(lookup_item["url"])
+                ingredient.description = lookup_item["description"]
 
         for ingredient in lookup.values():
-            ingredient_instance = Ingredient.get_by_url(ingredient["url"])
             db.session.add(
                 RecipeIngredient(
                     recipe=instance,
-                    ingredient=ingredient_instance,
+                    ingredient=Ingredient.get_by_url(ingredient["url"]),
                     description=ingredient["description"],
                 )
             )
