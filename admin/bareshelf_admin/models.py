@@ -5,14 +5,24 @@ from sqlalchemy import event
 from .database import db
 
 
-class Ingredient(db.Model):  # type: ignore
+class Getters:
+    slug = db.Column(db.String, nullable=False, unique=True, index=True)
+    url = db.Column(db.String, nullable=False, unique=True, index=True)
+
+    @classmethod
+    def get_by_url(cls, url: str) -> Optional[Any]:
+        return db.session.query(cls).filter(cls.url == url).first()
+
+    @classmethod
+    def get_by_slug(cls, slug: str) -> Optional[Any]:
+        return db.session.query(cls).filter(cls.slug == slug).first()
+
+
+class Ingredient(db.Model, Getters):  # type: ignore
     __tablename__ = "ingredient"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String, nullable=False)
-
-    slug = db.Column(db.String, nullable=False, unique=True, index=True)
-    url = db.Column(db.String, nullable=False, unique=True, index=True)
 
     # TODO: maybe just do this with namespaced slug like pasta/fusilli
     parent_id = db.Column(db.Integer, db.ForeignKey("ingredient.id"), nullable=True)
@@ -21,10 +31,6 @@ class Ingredient(db.Model):  # type: ignore
     recipe_ingredients = db.relationship(
         "RecipeIngredient", back_populates="ingredient"
     )
-
-    @staticmethod
-    def get_by_url(url: str) -> Optional['Ingredient']:
-        return db.session.query(Ingredient).filter(Ingredient.url == url).first()
 
     def __repr__(self) -> str:
         return f'<Ingredient "{self.name}">'
@@ -38,19 +44,13 @@ class QuantityUnit(db.Model):  # type: ignore
     abbreviation = db.Column(db.String, nullable=True)
 
 
-class Recipe(db.Model):  # type: ignore
+class Recipe(db.Model, Getters):  # type: ignore
     __tablename__ = "recipe"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     title = db.Column(db.String, nullable=False, unique=False)
-    slug = db.Column(db.String, nullable=False, unique=True, index=True)
-    url = db.Column(db.String, nullable=False, unique=True, index=True)
 
     ingredients = db.relationship("RecipeIngredient", back_populates="recipe")
-
-    @staticmethod
-    def get_by_url(url: str) -> Optional['Recipe']:
-        return db.session.query(Recipe).filter(Recipe.url == url).first()
 
     def __repr__(self) -> str:
         return f'<Recipe "{self.title}">'
@@ -59,10 +59,9 @@ class Recipe(db.Model):  # type: ignore
 class RecipeIngredient(db.Model):  # type: ignore
     __tablename__ = "recipe_ingredient"
 
-    ingredient_id = db.Column(
-        db.Integer, db.ForeignKey("ingredient.id"), primary_key=True
-    )
-    recipe_id = db.Column(db.Integer, db.ForeignKey("recipe.id"), primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    recipe_id = db.Column(db.Integer, db.ForeignKey("recipe.id"), nullable=False)
+    ingredient_id = db.Column(db.Integer, db.ForeignKey("ingredient.id"), nullable=True)
     quantity_unit_id = db.Column(
         db.Integer, db.ForeignKey("quantity_unit.id"), nullable=True
     )

@@ -1,28 +1,71 @@
+from typing import Any, Iterable, Union, Mapping
+
 import scrapy
+from scrapy.http import Response, Request
 
-from bareshelf_admin.models import Ingredient
+from bareshelf_admin.models import Ingredient, Recipe
 
-class BBCIngredientsSpider(scrapy.Spider):
-    name = "bbc-ingredients"
-    model = Ingredient
 
-    def start_requests(self):
-        urls = (
-            "https://www.bbc.co.uk/food/ingredients/a-z",
-        )
-        yield from (scrapy.Request(url=url, callback=self.parse) for url in urls)
-
-    def parse(self, response):
+class BBCPaginationMixin:
+    def follow_pages(self, response: Response) -> Iterable[Request]:
         yield from (
-            scrapy.Request(response.urljoin(letter.get()), callback=self.parse)
+            response.follow(letter.get(), callback=self.parse)  # type: ignore
             for letter in response.css(".az-keyboard ul li a::attr(href)")
         )
         yield from (
-            scrapy.Request(response.urljoin(number.get()), callback=self.parse)
+            response.follow(number.get(), callback=self.parse)  # type: ignore
             for number in response.css("ul.pagination__list li a::attr(href)")
         )
+
+
+class BBCIngredientsSpider(scrapy.Spider, BBCPaginationMixin):  # type: ignore
+    name = "bbc-ingredients"
+    model = Ingredient
+    start_urls = ("https://www.bbc.co.uk/food/ingredients/a-z",)
+
+    def parse(self, response: Response) -> Iterable[Union[Request, Mapping]]:
+        yield from self.follow_pages(response)
         for ingredient in response.css("a.promo__ingredient"):
             yield {
                 "name": ingredient.css("h3::text").get(),
                 "url": response.urljoin(ingredient.attrib["href"]),
             }
+
+
+class BBCRecipeSpider(scrapy.Spider, BBCPaginationMixin):  # type: ignore
+    name = "bbc-recipes"
+    model = Recipe
+    start_urls = ("https://www.bbc.co.uk/food/recipes/a-z",)
+
+    def parse(self, response: Response) -> Iterable[Union[Request, Mapping]]:
+        yield from self.follow_pages(response)
+        for recipe_url in response.css("a.promo::attr(href)"):
+            yield response.follow(recipe_url.get(), callback=self.parse)
+
+        recipe = response.css("div.recipe-main-info")
+        if recipe:
+            ingredients = [
+                self._get_ingredient(response, ingredient)
+                for ingredient in recipe.css("li.recipe-ingredients__list-item")
+            ]
+            # TODO: parse ingredient from description. this loses about 20% of recipes
+            # TODO: add them anyway but make ingredient relation nullable
+            if all(ingredient["url"] is not None for ingredient in ingredients):
+                yield {
+                    "title": recipe.css("h1::text").get(),
+                    "url": response.url,
+                    "ingredients": ingredients,
+                }
+
+    def _get_ingredient(self, response: Response, ingredient: Any) -> Mapping:
+        url = ingredient.css("a::attr(href)").get()
+        if url is not None:
+            url = response.urljoin(url)
+        description = "".join(ingredient.css("::text").getall())
+
+        result = {
+            "description": description,
+            "url": url,
+        }
+
+        return result
