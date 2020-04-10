@@ -8,6 +8,7 @@ from flask_migrate import Migrate
 from .database import db
 from .views import IngredientView, RecipeView
 from .models import Ingredient, Recipe, RecipeIngredient
+from .indexer import index
 
 
 admin = Admin(name="bareshelf.recipe", template_mode="bootstrap3")
@@ -30,5 +31,7 @@ def create_app() -> Flask:
     admin.add_view(IngredientView(Ingredient, db.session))
     admin.add_view(RecipeView(Recipe, db.session))
     admin.add_view(ModelView(RecipeIngredient, db.session))
+
+    app.cli.command(name="index")(index)
 
     return app
