@@ -8,8 +8,10 @@ services:
     environment:
       - ADMIN_SECRET_KEY=dYvSThPKxc1aAQok8WpjIqs/vtYioidKOx+VT5TZgIs
       - ADMIN_SQLALCHEMY_DATABASE_URL=postgresql://bareshelf:password@db/bareshelf
+      - ADMIN_SEARCH_INDEX_PATH=/var/lib/bareshelf/search-index
     volumes:
       - ./admin:/opt/app
+      - ./search-index:/var/lib/bareshelf/search-index
     ports:
       - "127.0.0.1:6001:6001"
 

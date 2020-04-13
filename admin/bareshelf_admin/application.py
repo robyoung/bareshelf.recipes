@@ -22,6 +22,7 @@ def create_app() -> Flask:
     app.config["SQLALCHEMY_DATABASE_URI"] = os.environ["ADMIN_SQLALCHEMY_DATABASE_URL"]
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = os.environ["ADMIN_SECRET_KEY"]
+    app.config["SEARCH_INDEX_PATH"] = os.environ["ADMIN_SEARCH_INDEX_PATH"]
 
     db.init_app(app)
     app.migrate = Migrate(app, db)

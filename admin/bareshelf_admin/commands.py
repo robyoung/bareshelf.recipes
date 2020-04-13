@@ -1,12 +1,14 @@
 import os
 
+from flask import current_app
+
 from . import indexer
 from .database import db
 from .models import Recipe
 
 
 def index():
-    path = "./search_index"
+    path = current_app.config["SEARCH_INDEX_PATH"]
     if not os.path.exists(path):
         os.mkdir(path)
     index = indexer.create_or_open(path)

@@ -7,7 +7,7 @@ use tantivy::{
 };
 
 fn main() -> Result<(), TantivyError> {
-    let path: String = env::args().nth(1).expect("Requires path to index");
+    let path: String = env::args().nth(1).unwrap_or_else(|| "./search-index".to_owned());
 
     let index = Index::open(MmapDirectory::open(Path::new(&path))?)?;
     let reader = index.reader().unwrap();
