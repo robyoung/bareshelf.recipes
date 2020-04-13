@@ -8,7 +8,7 @@ from flask_migrate import Migrate
 from .database import db
 from .views import IngredientView, RecipeView
 from .models import Ingredient, Recipe, RecipeIngredient
-from .indexer import index
+from .commands import index
 
 
 admin = Admin(name="bareshelf.recipe", template_mode="bootstrap3")
