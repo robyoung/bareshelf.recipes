@@ -130,13 +130,15 @@ mod tests {
     use tantivy::collector::TopDocs;
     use tantivy::query::BooleanQuery;
     use tantivy::schema::*;
-    use tantivy::{doc, Index};
+    use tantivy::{DocId, Index, Score, SegmentReader};
+    use tantivy::doc;
+    use std::collections::HashSet;
 
     #[test]
-    fn facet_scoring() {
+    fn tweak_score_with_facets() {
         let mut schema_builder = Schema::builder();
 
-        let title = schema_builder.add_text_field("title", TEXT | STORED);
+        let title = schema_builder.add_text_field("title", STORED);
         let ingredient = schema_builder.add_facet_field("ingredient");
 
         let schema = schema_builder.build();
@@ -144,8 +146,6 @@ mod tests {
 
         let mut index_writer = index.writer(30_000_000).unwrap();
 
-        // For convenience, tantivy also comes with a macro to
-        // reduce the boilerplate above.
         index_writer.add_document(doc!(
             title => "Fried egg",
             ingredient => Facet::from("/ingredient/egg"),
@@ -172,14 +172,44 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         {
-            let query = BooleanQuery::new_multiterms_query(vec![
-                Term::from_facet(ingredient, &Facet::from_text("/ingredient/egg")),
-                Term::from_facet(ingredient, &Facet::from_text("/ingredient/oil")),
-                Term::from_facet(ingredient, &Facet::from_text("/ingredient/garlic")),
-                Term::from_facet(ingredient, &Facet::from_text("/ingredient/mushroom")),
-            ]);
-            let top_docs_collector = TopDocs::with_limit(2);
-            let top_docs = searcher.search(&query, &top_docs_collector).unwrap();
+            let facets = vec![
+                Facet::from("/ingredient/egg"),
+                Facet::from("/ingredient/oil"),
+                Facet::from("/ingredient/garlic"),
+                Facet::from("/ingredient/mushroom"),
+            ];
+            let query = BooleanQuery::new_multiterms_query(
+                facets
+                    .iter()
+                    .map(|key| Term::from_facet(ingredient, &key))
+                    .collect(),
+            );
+            let top_docs_by_custom_score =
+                TopDocs::with_limit(2).tweak_score(move |segment_reader: &SegmentReader| {
+                    let mut ingredient_reader = segment_reader.facet_reader(ingredient).unwrap();
+                    let facet_dict = ingredient_reader.facet_dict();
+
+                    let query_ords: HashSet<u64> = facets
+                        .iter()
+                        .filter_map(|key| facet_dict.term_ord(key.encoded_str()))
+                        .collect();
+
+                    let mut facet_ords_buffer: Vec<u64> = Vec::with_capacity(20);
+
+                    move |doc: DocId, original_score: Score| {
+                        ingredient_reader.facet_ords(doc, &mut facet_ords_buffer);
+                        let missing_ingredients = facet_ords_buffer
+                            .iter()
+                            .cloned()
+                            .collect::<HashSet<u64>>()
+                            .difference(&query_ords)
+                            .count();
+                        let tweak = 1.0 / 4_f32.powi(missing_ingredients as i32);
+
+                        original_score * tweak
+                    }
+                });
+            let top_docs = searcher.search(&query, &top_docs_by_custom_score).unwrap();
 
             let titles: Vec<String> = top_docs
                 .iter()
@@ -194,7 +224,7 @@ mod tests {
                         .to_owned()
                 })
                 .collect();
-            assert_eq!(titles, vec!["Egg rolls", "Fried egg"]);
+            assert_eq!(titles, vec!["Fried egg", "Egg rolls"]);
         }
     }
 }
