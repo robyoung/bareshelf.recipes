@@ -1,19 +1,9 @@
 [package]
-name = "indexer"
+name = "bareshelf"
 version = "0.1.0"
 authors = ["Rob Young <rob@robyoung.digital>"]
 edition = "2018"
 
-[lib]
-name = "indexer"
-crate-type = ["cdylib"]
-
 [dependencies]
 tantivy = { git = "https://github.com/robyoung/tantivy", branch = "make-tweak-score-mutable-rebased" }
-
-[dependencies.pyo3]
-version = "0.9"
-
-[features]
-extension-module = ["pyo3/extension-module"]
-default = ["extension-module"]
+structopt = "0.2.10"

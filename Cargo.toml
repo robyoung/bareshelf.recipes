@@ -1,6 +1,6 @@
 [workspace]
 
 members = [
-  "search",
-  "indexer",
+  "bareshelf",
+  "bareshelf_indexer",
 ]
