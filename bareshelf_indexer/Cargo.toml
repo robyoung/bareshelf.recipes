@@ -10,9 +10,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 tantivy = { git = "https://github.com/robyoung/tantivy", branch = "make-tweak-score-mutable-rebased" }
-
-[dependencies.pyo3]
-version = "0.9"
+bareshelf = { path = "../bareshelf" }
+pyo3 = "0.9"
 
 [features]
 extension-module = ["pyo3/extension-module"]

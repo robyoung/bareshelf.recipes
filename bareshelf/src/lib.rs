@@ -5,12 +5,11 @@ mod error;
 mod indexer;
 mod searcher;
 
-use crate::{
-    indexer::Indexer,
+pub use crate::{
+    error::Result,
+    indexer::{Indexer, Recipe, Ingredient},
     searcher::Searcher,
 };
-
-pub use crate::error::Result;
 
 pub fn indexer(path: &Path) -> Result<Indexer> {
     Indexer::new(

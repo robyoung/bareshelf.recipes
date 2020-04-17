@@ -42,8 +42,8 @@ impl Indexer {
         document.add_text(self.recipes_fields[0], &recipe.title);
         document.add_text(self.recipes_fields[1], &recipe.slug);
         recipe.ingredients.iter().for_each(|ingredient| {
-            document.add_facet(self.recipes_fields[2], &format!("/ingredient/{}", ingredient.slug));
-            document.add_text(self.recipes_fields[3], &ingredient.name);
+            document.add_text(self.recipes_fields[2], &ingredient.name);
+            document.add_facet(self.recipes_fields[3], &format!("/ingredient/{}", ingredient.slug));
         });
         document
     }
@@ -61,12 +61,12 @@ impl Indexer {
 }
 
 pub struct Recipe {
-    title: String,
-    slug: String,
-    ingredients: Vec<Ingredient>,
+    pub title: String,
+    pub slug: String,
+    pub ingredients: Vec<Ingredient>,
 }
 
 pub struct Ingredient {
-    name: String,
-    slug: String,
+    pub name: String,
+    pub slug: String,
 }

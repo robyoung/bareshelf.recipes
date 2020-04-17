@@ -1,7 +1,7 @@
 
 build-indexer:
 	cargo build -p bareshelf_indexer --release
-	cp ./target/release/libindexer.so ./admin/bareshelf_admin/bareshelf_indexer.so
+	cp ./target/release/libbareshelf_indexer.so ./admin/bareshelf_admin/bareshelf_indexer.so
 
 run-indexer: build-indexer
 	sudo chmod -R 777 search-index

@@ -77,6 +77,7 @@ dependencies = [
 name = "bareshelf_indexer"
 version = "0.1.0"
 dependencies = [
+ "bareshelf",
  "pyo3",
  "tantivy",
 ]
