@@ -54,7 +54,7 @@ impl Searcher {
 
         let search_igredients_set: HashSet<String> =
             ingredients.iter().cloned().map(String::from).collect();
-        let facets: Vec<Facet> = ingredients.iter().map(Facet::from).collect();
+        let facets: Vec<Facet> = ingredients.iter().map(|i| Facet::from(&format!("/ingredient/{}", i))).collect();
         let query = BooleanQuery::new_multiterms_query(
             facets
                 .iter()

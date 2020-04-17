@@ -1,4 +1,4 @@
-use crate::{error::Result, recipes_schema, ingredients_schema};
+use crate::{error::Result, ingredients_schema, recipes_schema};
 
 pub struct Indexer {
     recipes_writer: tantivy::IndexWriter,
@@ -34,7 +34,8 @@ impl Indexer {
     }
 
     pub fn add_recipe(&mut self, recipe: Recipe) {
-        self.recipes_writer.add_document(self.create_recipe_doc(&recipe));
+        self.recipes_writer
+            .add_document(self.create_recipe_doc(&recipe));
     }
 
     fn create_recipe_doc(&self, recipe: &Recipe) -> tantivy::schema::Document {
@@ -43,13 +44,17 @@ impl Indexer {
         document.add_text(self.recipes_fields[1], &recipe.slug);
         recipe.ingredients.iter().for_each(|ingredient| {
             document.add_text(self.recipes_fields[2], &ingredient.name);
-            document.add_facet(self.recipes_fields[3], &format!("/ingredient/{}", ingredient.slug));
+            document.add_facet(
+                self.recipes_fields[3],
+                &format!("/ingredient/{}", ingredient.slug),
+            );
         });
         document
     }
 
     pub fn add_ingredient(&mut self, ingredient: Ingredient) {
-        self.ingredients_writer.add_document(self.create_ingredient_doc(&ingredient));
+        self.ingredients_writer
+            .add_document(self.create_ingredient_doc(&ingredient));
     }
 
     fn create_ingredient_doc(&self, ingredient: &Ingredient) -> tantivy::schema::Document {
@@ -66,7 +71,26 @@ pub struct Recipe {
     pub ingredients: Vec<Ingredient>,
 }
 
+impl Recipe {
+    pub fn new(title: &str, slug: &str, ingredients: Vec<Ingredient>) -> Self {
+        Self {
+            title: String::from(title),
+            slug: String::from(slug),
+            ingredients,
+        }
+    }
+}
+
 pub struct Ingredient {
     pub name: String,
     pub slug: String,
+}
+
+impl Ingredient {
+    pub fn new(name: &str, slug: &str) -> Self {
+        Self {
+            name: String::from(name),
+            slug: String::from(slug),
+        }
+    }
 }
