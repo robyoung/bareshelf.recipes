@@ -1,15 +1,16 @@
 use std::collections::HashSet;
 
 use tantivy::{
-    collector::{FacetCollector, TopDocs, Count},
+    collector::{Count, FacetCollector, TopDocs},
     fastfield::FacetReader,
     query::{AllQuery, BooleanQuery, FuzzyTermQuery},
     schema::{Facet, Field, Term, Value},
     DocId, Document, IndexReader, Score, SegmentReader,
 };
 
-use crate::{error::Result};
+use crate::error::Result;
 
+#[derive(Clone)]
 pub struct Searcher {
     recipes_reader: IndexReader,
     recipes_title: Field,
@@ -48,13 +49,18 @@ impl Searcher {
             .collect())
     }
 
-    pub fn recipes_by_ingredients(&self, ingredients: &[&str], limit: usize) -> Result<Vec<RecipeSearchResult>> {
+    pub fn recipes_by_ingredients(
+        &self,
+        ingredients: &[String],
+        limit: usize,
+    ) -> Result<Vec<RecipeSearchResult>> {
         let ingredient_slug_field = self.recipes_ingredient_slug;
         let recipe_title_field = self.recipes_title;
 
-        let search_igredients_set: HashSet<String> =
-            ingredients.iter().cloned().map(String::from).collect();
-        let facets: Vec<Facet> = ingredients.iter().map(|i| Facet::from(&format!("/ingredient/{}", i))).collect();
+        let ingredients: Vec<IngredientSlug> =
+            ingredients.iter().map(IngredientSlug::from).collect();
+        let search_igredients_set: HashSet<IngredientSlug> = ingredients.iter().cloned().collect();
+        let facets: Vec<Facet> = ingredients.iter().map(Into::into).collect();
         let query = BooleanQuery::new_multiterms_query(
             facets
                 .iter()
@@ -88,16 +94,16 @@ impl Searcher {
                     .text()
                     .unwrap()
                     .to_string();
-                let ingredient_slugs: Vec<String> = document
+                let ingredient_slugs: Vec<IngredientSlug> = document
                     .get_all(ingredient_slug_field)
                     .iter()
                     .map(|ingredient| match ingredient {
-                        Value::Facet(value) => format!("{}", value),
+                        Value::Facet(value) => IngredientSlug::from(value),
                         _ => unreachable!(),
                     })
                     .collect();
                 let ingredient_slugs_set: HashSet<_> = ingredient_slugs.iter().cloned().collect();
-                let missing_ingredients: Vec<String> = ingredient_slugs_set
+                let missing_ingredients: Vec<_> = ingredient_slugs_set
                     .difference(&search_igredients_set)
                     .cloned()
                     .collect();
@@ -106,8 +112,8 @@ impl Searcher {
                     score: *score,
                     document,
                     recipe_title,
-                    ingredient_slugs,
-                    missing_ingredients,
+                    ingredient_slugs: ingredient_slugs.iter().map(Into::into).collect(),
+                    missing_ingredients: missing_ingredients.iter().map(Into::into).collect(),
                 }
             })
             .collect();
@@ -124,18 +130,20 @@ impl Searcher {
         let query = FuzzyTermQuery::new_prefix(term, 1, true);
         let (top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(10), Count))?;
 
-        let top_docs: Vec<Ingredient> = top_docs.iter().map(|(score, doc_id)| {
-            let document = searcher.doc(*doc_id).unwrap();
-            let name = document.get_all(name_field)[0].text().unwrap().to_string();
-            let slug = document.get_all(slug_field)[0].text().unwrap().to_string();
+        let top_docs: Vec<Ingredient> = top_docs
+            .iter()
+            .map(|(score, doc_id)| {
+                let document = searcher.doc(*doc_id).unwrap();
+                let name = document.get_all(name_field)[0].text().unwrap().to_string();
+                let slug = document.get_all(slug_field)[0].text().unwrap().to_string();
 
-            Ingredient {
-                score: *score,
-                name,
-                slug,
-            }
-        })
-        .collect();
+                Ingredient {
+                    score: *score,
+                    name,
+                    slug,
+                }
+            })
+            .collect();
 
         Ok((top_docs, count))
     }
@@ -187,4 +195,78 @@ fn calculate_score(
     }
     */
     tweaked_score
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct IngredientSlug(String);
+
+impl std::fmt::Display for IngredientSlug {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<Facet> for IngredientSlug {
+    fn from(facet: Facet) -> IngredientSlug {
+        IngredientSlug::from(&facet)
+    }
+}
+
+impl From<&Facet> for IngredientSlug {
+    fn from(facet: &Facet) -> IngredientSlug {
+        IngredientSlug(facet.to_path()[1].to_owned())
+    }
+}
+
+impl From<&String> for IngredientSlug {
+    fn from(slug: &String) -> IngredientSlug {
+        IngredientSlug::from(slug.clone())
+    }
+}
+
+impl From<String> for IngredientSlug {
+    fn from(slug: String) -> IngredientSlug {
+        IngredientSlug(slug)
+    }
+}
+
+impl From<&str> for IngredientSlug {
+    fn from(slug: &str) -> IngredientSlug {
+        IngredientSlug(slug.to_owned())
+    }
+}
+
+impl Into<Facet> for IngredientSlug {
+    fn into(self) -> Facet {
+        (&self).into()
+    }
+}
+
+impl Into<Facet> for &IngredientSlug {
+    fn into(self) -> Facet {
+        Facet::from(&format!("/ingredient/{}", self))
+    }
+}
+
+impl Into<String> for &IngredientSlug {
+    fn into(self) -> String {
+        self.0.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ingredient_slug_from_strings() {
+        let slug = IngredientSlug::from("recipe");
+        assert_eq!(IngredientSlug::from("recipe"), slug);
+        assert_eq!(
+            IngredientSlug::from(Facet::from("/ingredient/recipe")),
+            slug
+        );
+        let facet: Facet = slug.into();
+        assert_eq!(facet, Facet::from("/ingredient/recipe"));
+    }
 }

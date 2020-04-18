@@ -3,4 +3,5 @@
 members = [
   "bareshelf",
   "bareshelf_indexer",
+  "bareshelf_web",
 ]

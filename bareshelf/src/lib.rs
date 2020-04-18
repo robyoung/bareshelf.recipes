@@ -8,7 +8,7 @@ mod searcher;
 pub use crate::{
     error::Result,
     indexer::{Indexer, Ingredient, Recipe},
-    searcher::Searcher,
+    searcher::{IngredientSlug, RecipeSearchResult, Searcher},
 };
 
 pub fn indexer(path: &Path) -> Result<Indexer> {
@@ -100,10 +100,20 @@ mod tests {
         indexer.commit().unwrap();
 
         let searcher = searcher(Path::new(&data.0)).unwrap();
-        let query_ingredients = vec!["egg", "oil", "garlic", "mushroom"];
-        let results = searcher.recipes_by_ingredients(&query_ingredients, 2).unwrap();
+        let query_ingredients = vec!["egg", "oil", "garlic", "mushroom"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        let results = searcher
+            .recipes_by_ingredients(&query_ingredients, 2)
+            .unwrap();
 
-        assert_eq!(results.iter().map(|r| r.recipe_title.to_owned()).collect::<Vec<String>>(), vec!["Fried egg", "Egg rolls"]);
-
+        assert_eq!(
+            results
+                .iter()
+                .map(|r| r.recipe_title.to_owned())
+                .collect::<Vec<String>>(),
+            vec!["Fried egg", "Egg rolls"]
+        );
     }
 }

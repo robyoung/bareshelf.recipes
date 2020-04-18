@@ -1,6 +1,6 @@
-use std::{io, fmt};
+use std::{fmt, io};
 
-use tantivy::{TantivyError, directory::error::OpenDirectoryError};
+use tantivy::{directory::error::OpenDirectoryError, TantivyError};
 
 pub type Result<T> = std::result::Result<T, Error>;
 

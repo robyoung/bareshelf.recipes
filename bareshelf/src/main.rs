@@ -23,7 +23,7 @@ enum Command {
     },
 }
 
-fn main() -> Result<(), > {
+fn main() -> Result<()> {
     let opt = Cli::from_args();
 
     let searcher = searcher(&opt.path.as_path())?;
@@ -32,25 +32,33 @@ fn main() -> Result<(), > {
         Command::ListIngredients => {
             for (slug, count) in searcher.recipe_ingredients()? {
                 println!("{} {}", slug, count);
-            };
+            }
         }
         Command::Search {
             limit,
             facets: search_facets,
         } => {
-            
-            searcher.recipes_by_ingredients(search_facets.iter().map(|s| &**s).collect::<Vec<&str>>().as_slice(), limit)?.iter().for_each(|recipe| {
-                println!("\n> {}    ({})", recipe.recipe_title, recipe.score);
-                println!("{} matching, {} missing", recipe.ingredient_slugs.len() - recipe.missing_ingredients.len(), recipe.missing_ingredients.len());
-                let missing_set: HashSet<_> = recipe.missing_ingredients.iter().cloned().collect();
-                for ingredient in &recipe.ingredient_slugs {
-                    print!("    - {}", ingredient);
-                    if missing_set.contains(ingredient) {
-                        print!("  - MISSING");
+            searcher
+                .recipes_by_ingredients(&search_facets, limit)?
+                .iter()
+                .for_each(|recipe| {
+                    println!("\n> {}    ({})", recipe.recipe_title, recipe.score);
+                    println!(
+                        "{} matching, {} missing",
+                        recipe.ingredient_slugs.len() - recipe.missing_ingredients.len(),
+                        recipe.missing_ingredients.len()
+                    );
+                    println!("Missing: {:?}", recipe.missing_ingredients);
+                    let missing_set: HashSet<_> =
+                        recipe.missing_ingredients.iter().cloned().collect();
+                    for ingredient in &recipe.ingredient_slugs {
+                        print!("    - {}", ingredient);
+                        if missing_set.contains(ingredient) {
+                            print!("  - MISSING");
+                        }
+                        println!();
                     }
-                    println!();
-                }
-            });
+                });
         }
     }
 
