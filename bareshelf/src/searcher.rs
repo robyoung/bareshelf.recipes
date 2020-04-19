@@ -7,6 +7,7 @@ use tantivy::{
     schema::{Facet, Field, Term, Value},
     DocId, Document, IndexReader, Score, SegmentReader,
 };
+use serde::Serialize;
 
 use crate::error::Result;
 
@@ -127,8 +128,8 @@ impl Searcher {
 
         let searcher = self.ingredients_reader.searcher();
         let term = Term::from_field_text(self.ingredients_name, prefix);
-        let query = FuzzyTermQuery::new_prefix(term, 1, true);
-        let (top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(10), Count))?;
+        let query = FuzzyTermQuery::new_prefix(term, 0, true);
+        let (top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(20), Count))?;
 
         let top_docs: Vec<Ingredient> = top_docs
             .iter()
@@ -157,6 +158,7 @@ pub struct RecipeSearchResult {
     pub missing_ingredients: Vec<String>,
 }
 
+#[derive(Serialize)]
 pub struct Ingredient {
     pub score: Score,
     pub name: String,
@@ -180,8 +182,7 @@ fn calculate_score(
     query_ords: &HashSet<u64>,
 ) -> Score {
     ingredient_reader.facet_ords(doc, facet_ords_buffer);
-    let facet_ords = facet_ords_buffer.iter().cloned().collect::<HashSet<u64>>();
-    let missing_ingredients = facet_ords.difference(&query_ords).count();
+    let missing_ingredients = facet_ords_buffer.iter().filter(|o| !query_ords.contains(o)).count();
     let tweak = 1.0 / 4_f32.powi(missing_ingredients as i32);
 
     let tweaked_score = original_score * tweak;

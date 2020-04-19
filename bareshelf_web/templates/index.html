@@ -1,42 +1,91 @@
 {% extends "base.html" %}
-{% block title %}Index{% endblock title %}
 
 {% block content %}
 
 <div class="row">
-  <div class="col s12">
-    <div class="card blue-grey darken-4 measurement">
-      <div class="card-content white-text">
+  <div class="col s3">
+    <div class="card">
+      <div class="card-content">
+        <h3>Ingredients</h3>
         <form action="/add-ingredient" method="post">
-          <input type=text name=ingredient>
+          <div class=input-field>
+            <input class=autocomplete type=text name=ingredient>
 
-          <button class="btn waves-effect waves-light" type=submit name=action>
-             search
-             <i class="material-icons right">hot_tub</i>
-          </button>
+            <button class="btn waves-effect waves-light" type=submit name=action>
+               add
+               <i class="material-icons right">hot_tub</i>
+            </button>
+          </div>
         </form>
-        <h2>Ingredients</h2>
-        <ul>
+        <form action="/remove-ingredient" method=post>
+        <ul class="collection search-ingredients">
           {% for ingredient in ingredients %}
-          <li>{{ ingredient }}</li>
-          {% endfor %}
-        </ul>
-        <h2>Recipes</h2>
-        <ul>
-          {% for recipe in recipes %}
-          <li>
-            <h3>{{recipe.title}}</h3>
-            <h4>Ingredients</h4>
-            <ol>
-              {% for ingredient in recipe.ingredients %}
-                <li>{{ ingredient.slug }}{% if ingredient.is_missing %} *{% endif %}</li>
-              {% endfor %}
-            </ol>
+          <li class="collection-item">
+            {{ ingredient }}
+            <button class="btn-floating btn-small waves-effect right" type=submit name=ingredient value={{ingredient}}>
+              <i class="material-icons">remove</i>
+            </button>
           </li>
           {% endfor %}
         </ul>
+        </form>
       </div>
     </div>
   </div>
+
+  <div class="col s9">
+    <h2>Recipes</h2>
+    {% for recipe in recipes %}
+    <div class="card">
+      <div class="card-content">
+        <span class="card-title activator">{{ recipe.title }}</span>
+        <p>{{ recipe.ingredients | length }} ingredients ({{ recipe.num_missing }} missing)</p>
+        <ol>
+          {% for ingredient in recipe.ingredients %}
+            <li class="{% if ingredient.is_missing %}missing-ingredient{% endif %}">
+              <p>{{ ingredient.slug }}</p>
+            </li>
+          {% endfor %}
+        </ol>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
 </div>
 {% endblock content %}
+
+{% block javascript %}
+<script type=text/javascript>
+  $(document).ready(function() {
+    $('input.autocomplete').each(function() {
+      let self = this;
+      $(this).autocomplete({
+        minLength: 2,
+        onAutocomplete: function() {
+          self.closest("form").submit();
+        }
+      });
+      $(this).keyup(function () {
+        console.log("input changed");
+          $.ajax({
+              url: '/ingredients',
+              type: 'get',
+              cache: false,
+              data: {"term": $(self).val()},
+              success: function (data) {
+                  let updateData = {};
+                  data.forEach(function(val) {
+                    updateData[val.slug] = null;
+                  });
+                  $(self).autocomplete("updateData", updateData);
+                  $(self).autocomplete("open");
+              },
+              error: function (err) {
+                  console.log(err);
+              }
+          });
+      });
+    });
+  });
+</script>
+{% endblock javascript %}

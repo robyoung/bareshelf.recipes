@@ -24,7 +24,7 @@ pub(crate) async fn index(
     if !ingredients.is_empty() {
         info!("Searching with ingredients: {:?}", ingredients);
         let recipes = searcher
-            .recipes_by_ingredients(&ingredients, 10)
+            .recipes_by_ingredients(&ingredients, 100)
             .map_err(|_| error::ErrorInternalServerError("failed to search"))?;
         ctx.insert(
             "recipes",
@@ -43,6 +43,7 @@ pub struct Recipe {
     score: f32,
     title: String,
     ingredients: Vec<Ingredient>,
+    num_missing: usize,
 }
 
 impl From<RecipeSearchResult> for Recipe {
@@ -59,6 +60,7 @@ impl From<RecipeSearchResult> for Recipe {
                     is_missing: missing.contains(slug),
                 })
                 .collect(),
+            num_missing: missing.len(),
         }
     }
 }
@@ -70,20 +72,50 @@ pub struct Ingredient {
 }
 
 #[derive(Deserialize)]
-pub struct AddIngredientForm {
+pub struct IngredientForm {
     ingredient: String,
 }
 
 pub(crate) async fn add_ingredient(
-    form: web::Form<AddIngredientForm>,
+    form: web::Form<IngredientForm>,
     session: Session,
 ) -> Result<HttpResponse, Error> {
-    info!("ingredients: {:?}", form.ingredient);
     let mut ingredients = get_ingredients(&session)?;
     ingredients.push(form.ingredient.to_owned());
+    ingredients.sort_unstable();
     set_ingredients(&session, ingredients)?;
 
     Ok(found("/"))
+}
+
+pub(crate) async fn remove_ingredient(
+    form: web::Form<IngredientForm>,
+    session: Session,
+) -> Result<HttpResponse, Error> {
+    set_ingredients(
+        &session,
+        get_ingredients(&session)?
+            .into_iter()
+            .filter(|i| *i != form.ingredient)
+            .collect(),
+    )?;
+
+    Ok(found("/"))
+}
+
+#[derive(Deserialize)]
+pub struct Search {
+    term: String,
+}
+
+pub(crate) async fn ingredients(
+    search: web::Query<Search>,
+    searcher: web::Data<bareshelf::Searcher>,
+) -> Result<HttpResponse, Error> {
+    let (ingredients, _) = searcher
+        .ingredients_by_prefix(&search.term)
+        .map_err(|_| error::ErrorInternalServerError("failed to search ingredients"))?;
+    Ok(HttpResponse::Ok().json(ingredients))
 }
 
 fn get_ingredients(session: &Session) -> Result<Vec<String>, Error> {

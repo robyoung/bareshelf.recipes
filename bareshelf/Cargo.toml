@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 tantivy = { git = "https://github.com/robyoung/tantivy", branch = "make-tweak-score-mutable-rebased" }
 structopt = "0.2.10"
+serde = "1.0"

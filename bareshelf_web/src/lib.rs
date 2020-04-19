@@ -31,7 +31,7 @@ pub async fn run_server() -> std::io::Result<()> {
                     .name("glow")
                     .http_only(true)
                     .secure(false)
-                    .max_age(60 * 60 * 24 * 3),
+                    .max_age(60 * 60 * 24 * 30),
             )
             .data(tera)
             .data(searcher)
@@ -39,7 +39,9 @@ pub async fn run_server() -> std::io::Result<()> {
             .service(
                 web::scope("/")
                     .route("", web::get().to(routes::index))
-                    .route("/add-ingredient", web::post().to(routes::add_ingredient)),
+                    .route("/add-ingredient", web::post().to(routes::add_ingredient))
+                    .route("/remove-ingredient", web::post().to(routes::remove_ingredient))
+                    .route("/ingredients", web::get().to(routes::ingredients)),
             )
     })
     .bind("127.0.0.1:8088")?
