@@ -16,6 +16,10 @@
 .search-ingredients li button {
   margin-top: -5px;
 }
+.notice-banner {
+  margin-top: 20px;
+  margin-bottom: 0;
+}
 ol {
   padding-left: 0;
   padding-bottom: 15px;
@@ -26,10 +30,42 @@ ol li {
 }
 </style>
 </head>
-<body>
+<body class="green lighten-2">
+  <header class=no-padding>
+    <div class=navbar-fixed>
+      <nav class=green>
+        <div class="container nav-wrapper">
+          <div class="col s12">
+            <a href=# class=brand-logo>bareshelf.recipes</a>
+          </div>
+        </div>
+      </nav>
+    </div>
+  </header>
   <div id="content" class="container">
-    {% block content %}{% endblock content %}
+
+      <div class="row notice-banner">
+        <div class="col s12">
+          <div class=card>
+            <div class="card-content yellow">
+              <p>
+                This site is a work in progress.
+                There is a lot that is broken and incomplete.
+                If you have any comments please <a href="https://forms.gle/XGUidZp3G5vjVv8KA">submit your feedback</a>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {% block content %}{% endblock content %}
   </div>
+
+  <footer class="footer-copyright green white-text">
+    <div class=container>
+      © 2020 <a href="https://robyoung.digital" class=white-text>Rob Young Digital</a>
+    </div>
+  </footer>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
   {% block javascript %}{% endblock javascript %}

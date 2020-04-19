@@ -47,7 +47,10 @@ pub async fn run_server() -> std::io::Result<()> {
                 web::scope("/")
                     .route("", web::get().to(routes::index))
                     .route("/add-ingredient", web::post().to(routes::add_ingredient))
-                    .route("/remove-ingredient", web::post().to(routes::remove_ingredient))
+                    .route(
+                        "/remove-ingredient",
+                        web::post().to(routes::remove_ingredient),
+                    )
                     .route("/ingredients", web::get().to(routes::ingredients)),
             )
     })
