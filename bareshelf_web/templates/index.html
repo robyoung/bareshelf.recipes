@@ -65,7 +65,7 @@
         <p>You have everything you need for this recipe!</p>
         {% endif %}
 
-        <div class=ingredients>
+        <div class=recipe-ingredients>
           <p style="float:left">{% if recipe.num_missing > 0 %}All ingredients{% else %}Ingredients {% endif %}:</p>
           <ol>
             {% for ingredient in recipe.ingredients %}
