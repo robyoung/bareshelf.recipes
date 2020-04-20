@@ -3,14 +3,16 @@
 {% block content %}
 
 <div class="row">
-  <div class="col s3">
-    <h3>My shelf</h3>
+  <div id=ingredients class="col s12 m4 l4 xl3">
+    <h3>Ingredients</h3>
+    <a class=quicklink href="#recipes">go to recipes</a>
     <div class="card">
       <div class="card-content">
         <form action="/add-ingredient" method="post">
           <div class=input-field>
-            <input class=autocomplete type=text name=ingredient id=add-ingredient>
+            <input class=autocomplete type=text name=ingredient id=add-ingredient autocomplete=off>
             <label for=add-ingredient>Ingredient</label>
+            <p>Add ingredients that you already have here</p>
 
             <button class="btn waves-effect waves-light" type=submit name=action>
                add to shelf
@@ -33,23 +35,43 @@
     </div>
   </div>
 
-  <div class="col s9">
+  <div id=recipes class="col s12 m8 l8 xl9">
     <h3>Recipes</h3>
+    <a class=quicklink href="#ingredients">go to ingredients</a>
+    {% if recipes %}
     {% for recipe in recipes %}
     <div class="card">
       <div class="card-content">
         <span class="card-title activator">{{ recipe.title }}</span>
-        <p>{{ recipe.ingredients | length }} ingredients ({{ recipe.num_missing }} missing)</p>
-        <ol>
-          {% for ingredient in recipe.ingredients %}
-            <li class="{% if ingredient.is_missing %}missing-ingredient{% endif %}">
-              <p>{{ ingredient.slug }}</p>
-            </li>
-          {% endfor %}
-        </ol>
+
+        {% if recipe.num_missing > 0 %}
+        <div class=ingredients>
+          <p style="float:left">You would need:</p>
+          <ol>
+            {% for ingredient in recipe.ingredients %}
+            {% if ingredient.is_missing %}
+            <li>{{ ingredient.slug }}</li>
+            {% endif %}{% endfor %}
+          </ol>
+        </div>
+        {% else %}
+        <p>You have everything you need for this recipe!</p>
+        {% endif %}
+
+        <div class=ingredients>
+          <p style="float:left">{% if recipe.num_missing > 0 %}All ingredients{% else %}Ingredients {% endif %}:</p>
+          <ol>
+            {% for ingredient in recipe.ingredients %}
+              <li class="{% if ingredient.is_missing %}missing-ingredient{% endif %}">
+                <p>{{ ingredient.slug }}</p>
+              </li>
+            {% endfor %}
+          </ol>
+        </div>
       </div>
     </div>
     {% endfor %}
+    {% endif %}
   </div>
 </div>
 {% endblock content %}

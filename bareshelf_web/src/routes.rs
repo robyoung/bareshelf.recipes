@@ -138,7 +138,7 @@ fn render(
 ) -> Result<HttpResponse, Error> {
     let body = tmpl
         .render(template_name, context.unwrap_or(&tera::Context::new()))
-        .map_err(|_| error::ErrorInternalServerError("template errror"))?;
+        .map_err(|e| error::ErrorInternalServerError(format!("template errror: {:?}", e)))?;
     Ok(HttpResponse::Ok().content_type("text/html").body(body))
 }
 

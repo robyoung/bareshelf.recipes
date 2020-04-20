@@ -10,6 +10,7 @@ pub async fn run_server() -> std::io::Result<()> {
     let cookie_key =
         base64::decode(&std::env::var("COOKIE_SECRET").expect("COOKIE_SECRET is required"))
             .expect("COOKIE_SECRET is not valid base64");
+    let app_host = std::env::var("APP_HOST").expect("APP_HOST must be set");
     let tera = if cfg!(feature = "embedded_templates") {
         let mut tera = Tera::new("/dev/null/*").unwrap();
         tera.add_raw_templates(vec![
@@ -54,7 +55,7 @@ pub async fn run_server() -> std::io::Result<()> {
                     .route("/ingredients", web::get().to(routes::ingredients)),
             )
     })
-    .bind("127.0.0.1:8088")?
+    .bind(app_host)?
     .run()
     .await
 }
