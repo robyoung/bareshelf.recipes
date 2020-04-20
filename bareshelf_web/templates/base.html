@@ -20,18 +20,28 @@
   margin-top: 20px;
   margin-bottom: 0;
 }
-.ingredients::after {
+
+.recipe-ingredients::after {
   content: " ";
   display: block;
   height: 0;
   clear: both;
 }
-.ingredients ol {
+.recipe-ingredients ol {
   padding-left: 0;
 }
-.ingredients li {
+.recipe-ingredients li {
   float: left;
   margin-left: 25px;
+}
+.recipe-source {
+  float: right;
+  font-size: 0.8em;
+  margin-top: -10px;
+  margin-bottom: 5px;
+}
+.recipe-chef-name {
+  font-size: 15px;
 }
 @media only screen and (min-width: 600px) {
   .quicklink {
@@ -46,7 +56,7 @@
       <nav class=green>
         <div class="container nav-wrapper">
           <div class="col s12">
-            <a href=# class=brand-logo>bareshelf.recipes</a>
+            <a href=# class=brand-logo>Bare shelf recipes</a>
           </div>
         </div>
       </nav>

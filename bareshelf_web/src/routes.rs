@@ -5,6 +5,7 @@ use actix_web::{error, http, web, Error, HttpResponse, Responder};
 use log::info;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use url;
 
 use bareshelf::RecipeSearchResult;
 
@@ -42,6 +43,9 @@ pub(crate) async fn index(
 pub struct Recipe {
     score: f32,
     title: String,
+    url: String,
+    source: String,
+    chef_name: Option<String>,
     ingredients: Vec<Ingredient>,
     num_missing: usize,
 }
@@ -52,6 +56,13 @@ impl From<RecipeSearchResult> for Recipe {
         Recipe {
             score: recipe.score,
             title: recipe.recipe_title,
+            url: recipe.recipe_url.clone(),
+            source: url::Url::parse(&recipe.recipe_url)
+                .unwrap()
+                .host_str()
+                .unwrap()
+                .to_owned(),
+            chef_name: recipe.recipe_chef_name,
             ingredients: recipe
                 .ingredient_slugs
                 .iter()
