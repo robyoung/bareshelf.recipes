@@ -23,8 +23,8 @@
         <ul class="collection search-ingredients">
           {% for ingredient in ingredients %}
           <li class="collection-item">
-            {{ ingredient }}
-            <button class="btn-floating btn-small waves-effect right" type=submit name=ingredient value={{ingredient}}>
+            {{ ingredient.name }}
+            <button class="btn-floating btn-small waves-effect right" type=submit name=ingredient value={{ingredient.slug}}>
               <i class="material-icons">remove</i>
             </button>
           </li>
@@ -57,7 +57,7 @@
           <ol>
             {% for ingredient in recipe.ingredients %}
             {% if ingredient.is_missing %}
-            <li>{{ ingredient.slug }}</li>
+            <li>{{ ingredient.name }}</li>
             {% endif %}{% endfor %}
           </ol>
         </div>
@@ -70,7 +70,7 @@
           <ol>
             {% for ingredient in recipe.ingredients %}
               <li class="{% if ingredient.is_missing %}missing-ingredient{% endif %}">
-                <p>{{ ingredient.slug }}</p>
+                <p>{{ ingredient.name }}</p>
               </li>
             {% endfor %}
           </ol>
@@ -104,7 +104,7 @@
               success: function (data) {
                   let updateData = {};
                   data.forEach(function(val) {
-                    updateData[val.slug] = null;
+                    updateData[val.name] = null;
                   });
                   $(self).autocomplete("updateData", updateData);
                   $(self).autocomplete("open");

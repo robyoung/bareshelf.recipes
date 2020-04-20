@@ -1,50 +1,43 @@
 use std::collections::HashSet;
 
-use serde::Serialize;
 use tantivy::{
     collector::{Count, FacetCollector, TopDocs},
     fastfield::FacetReader,
-    query::{AllQuery, BooleanQuery, FuzzyTermQuery},
-    schema::{Facet, Field, Term, Value},
-    DocId, Document, IndexReader, Score, SegmentReader,
+    query::{AllQuery, BooleanQuery, FuzzyTermQuery, QueryParser},
+    schema::{Facet, Schema, Term},
+    DocAddress, DocId, Document, IndexReader, LeasedItem, Score, SegmentReader,
 };
 
-use crate::error::Result;
+use crate::{
+    datatypes::{Ingredient, IngredientSlug, Recipe},
+    error::{Error, Result},
+};
 
 #[derive(Clone)]
 pub struct Searcher {
     recipes_reader: IndexReader,
-    recipes_title: Field,
-    recipes_url: Field,
-    recipes_chef_name: Field,
-    recipes_ingredient_slug: Field,
+    recipes_schema: Schema,
 
+    ingredients_index: tantivy::Index,
     ingredients_reader: IndexReader,
-    ingredients_name: Field,
-    ingredients_slug: Field,
+    ingredients_schema: Schema,
 }
 
 impl Searcher {
-    pub(crate) fn new(recipes: tantivy::Index, ingredients: tantivy::Index) -> Result<Searcher> {
-        let recipes_schema = recipes.schema();
-        let ingredients_schema = ingredients.schema();
-
+    pub(crate) fn new(recipes: &tantivy::Index, ingredients: &tantivy::Index) -> Result<Searcher> {
         Ok(Searcher {
             recipes_reader: recipes.reader()?,
-            recipes_title: recipes_schema.get_field("title").unwrap(),
-            recipes_ingredient_slug: recipes_schema.get_field("ingredient_slug").unwrap(),
-            recipes_url: recipes_schema.get_field("url").unwrap(),
-            recipes_chef_name: recipes_schema.get_field("chef_name").unwrap(),
+            recipes_schema: recipes.schema(),
 
+            ingredients_index: ingredients.clone(),
             ingredients_reader: ingredients.reader()?,
-            ingredients_name: ingredients_schema.get_field("name").unwrap(),
-            ingredients_slug: ingredients_schema.get_field("slug").unwrap(),
+            ingredients_schema: ingredients.schema(),
         })
     }
 
     pub fn recipe_ingredients(&self) -> Result<Vec<(String, u64)>> {
         let searcher = self.recipes_reader.searcher();
-        let mut facet_collector = FacetCollector::for_field(self.recipes_ingredient_slug);
+        let mut facet_collector = FacetCollector::for_field(self.recipes_schema.get_field("ingredient_slug").unwrap());
         facet_collector.add_facet("/ingredient");
         let facet_counts = searcher.search(&AllQuery, &facet_collector)?;
 
@@ -59,10 +52,7 @@ impl Searcher {
         ingredients: &[String],
         limit: usize,
     ) -> Result<Vec<RecipeSearchResult>> {
-        let ingredient_slug_field = self.recipes_ingredient_slug;
-        let recipe_title_field = self.recipes_title;
-        let recipe_url_field = self.recipes_url;
-        let recipe_chef_name_field = self.recipes_chef_name;
+        let ingredient_slug_field = self.recipes_schema.get_field("ingredient_slug").unwrap();
 
         let ingredients: Vec<IngredientSlug> =
             ingredients.iter().map(IngredientSlug::from).collect();
@@ -97,45 +87,21 @@ impl Searcher {
             .iter()
             .map(|(score, doc_id)| {
                 let document = searcher.doc(*doc_id).unwrap();
-                let recipe_title = document.get_all(recipe_title_field)[0]
-                    .text()
-                    .unwrap()
-                    .to_string();
-                let recipe_url = document.get_all(recipe_url_field)[0]
-                    .text()
-                    .unwrap()
-                    .to_string();
 
-                // TODO: improve this
-                let chef_name_parts = document.get_all(recipe_chef_name_field);
-
-                let recipe_chef_name = if chef_name_parts.len() > 0 {
-                    Some(chef_name_parts[0].text().unwrap().to_string())
-                } else {
-                    None
-                };
-
-                let ingredient_slugs: Vec<IngredientSlug> = document
-                    .get_all(ingredient_slug_field)
+                let recipe = Recipe::from_doc(&self.recipes_schema, &document).unwrap();
+                let ingredient_slugs_set: HashSet<_> = recipe
+                    .ingredients
                     .iter()
-                    .map(|ingredient| match ingredient {
-                        Value::Facet(value) => IngredientSlug::from(value),
-                        _ => unreachable!(),
-                    })
+                    .map(|i| IngredientSlug::from(&i.slug))
                     .collect();
-                let ingredient_slugs_set: HashSet<_> = ingredient_slugs.iter().cloned().collect();
                 let missing_ingredients: Vec<_> = ingredient_slugs_set
                     .difference(&search_igredients_set)
                     .cloned()
                     .collect();
-
                 RecipeSearchResult {
                     score: *score,
                     document,
-                    recipe_title,
-                    recipe_url,
-                    recipe_chef_name,
-                    ingredient_slugs: ingredient_slugs.iter().map(Into::into).collect(),
+                    recipe,
                     missing_ingredients: missing_ingredients.iter().map(Into::into).collect(),
                 }
             })
@@ -145,48 +111,60 @@ impl Searcher {
     }
 
     pub fn ingredients_by_prefix(&self, prefix: &str) -> Result<(Vec<Ingredient>, usize)> {
-        let name_field = self.ingredients_name;
-        let slug_field = self.ingredients_slug;
-
+        let name_field = self.ingredients_schema.get_field("name").unwrap();
         let searcher = self.ingredients_reader.searcher();
-        let term = Term::from_field_text(self.ingredients_name, prefix);
+        let term = Term::from_field_text(name_field, &prefix.to_lowercase());
         let query = FuzzyTermQuery::new_prefix(term, 0, true);
         let (top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(20), Count))?;
 
-        let top_docs: Vec<Ingredient> = top_docs
+        let top_docs = self.load_ingredients(&searcher, top_docs);
+
+        Ok((top_docs, count))
+    }
+
+    pub fn ingredient_by_name(&self, name: &str) -> Result<Ingredient> {
+        let name_field = self.ingredients_schema.get_field("name").unwrap();
+        let searcher = self.ingredients_reader.searcher();
+        let query = QueryParser::for_index(&self.ingredients_index, vec![name_field])
+            .parse_query(name)
+            .unwrap();
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(5))?;
+
+        let top_docs = self.load_ingredients(&searcher, top_docs);
+
+        top_docs
             .iter()
-            .map(|(score, doc_id)| {
+            .cloned()
+            .find(|i| i.name == name)
+            .ok_or_else(|| Error::Other("ingredient not found".to_string()))
+    }
+
+    fn load_ingredients(
+        &self,
+        searcher: &LeasedItem<tantivy::Searcher>,
+        top_docs: Vec<(Score, DocAddress)>,
+    ) -> Vec<Ingredient> {
+        let name_field = self.ingredients_schema.get_field("name").unwrap();
+        let slug_field = self.ingredients_schema.get_field("slug").unwrap();
+
+        top_docs
+            .iter()
+            .map(|(_, doc_id)| {
                 let document = searcher.doc(*doc_id).unwrap();
                 let name = document.get_all(name_field)[0].text().unwrap().to_string();
                 let slug = document.get_all(slug_field)[0].text().unwrap().to_string();
 
-                Ingredient {
-                    score: *score,
-                    name,
-                    slug,
-                }
+                Ingredient::new(&name, &slug)
             })
-            .collect();
-
-        Ok((top_docs, count))
+            .collect()
     }
 }
 
 pub struct RecipeSearchResult {
     pub score: Score,
     pub document: Document, // TODO: something more useful
-    pub recipe_title: String,
-    pub recipe_url: String,
-    pub recipe_chef_name: Option<String>,
-    pub ingredient_slugs: Vec<String>,
+    pub recipe: Recipe,
     pub missing_ingredients: Vec<String>,
-}
-
-#[derive(Serialize)]
-pub struct Ingredient {
-    pub score: Score,
-    pub name: String,
-    pub slug: String,
 }
 
 fn get_query_ords(facets: &[Facet], ingredient_reader: &FacetReader) -> HashSet<u64> {
@@ -212,89 +190,5 @@ fn calculate_score(
         .count();
     let tweak = 1.0 / 4_f32.powi(missing_ingredients as i32);
 
-    let tweaked_score = original_score * tweak;
-    /*
-    if false && tweaked_score > 2.0 {
-        let matching_ingredients = facet_ords.intersection(&query_ords).count();
-        println!(
-            "{} = {} * {}  : {} missing, {} matching",
-            tweaked_score, original_score, tweak, missing_ingredients, matching_ingredients
-        );
-    }
-    */
-    tweaked_score
-}
-
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct IngredientSlug(String);
-
-impl std::fmt::Display for IngredientSlug {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl From<Facet> for IngredientSlug {
-    fn from(facet: Facet) -> IngredientSlug {
-        IngredientSlug::from(&facet)
-    }
-}
-
-impl From<&Facet> for IngredientSlug {
-    fn from(facet: &Facet) -> IngredientSlug {
-        IngredientSlug(facet.to_path()[1].to_owned())
-    }
-}
-
-impl From<&String> for IngredientSlug {
-    fn from(slug: &String) -> IngredientSlug {
-        IngredientSlug::from(slug.clone())
-    }
-}
-
-impl From<String> for IngredientSlug {
-    fn from(slug: String) -> IngredientSlug {
-        IngredientSlug(slug)
-    }
-}
-
-impl From<&str> for IngredientSlug {
-    fn from(slug: &str) -> IngredientSlug {
-        IngredientSlug(slug.to_owned())
-    }
-}
-
-impl Into<Facet> for IngredientSlug {
-    fn into(self) -> Facet {
-        (&self).into()
-    }
-}
-
-impl Into<Facet> for &IngredientSlug {
-    fn into(self) -> Facet {
-        Facet::from(&format!("/ingredient/{}", self))
-    }
-}
-
-impl Into<String> for &IngredientSlug {
-    fn into(self) -> String {
-        self.0.clone()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn ingredient_slug_from_strings() {
-        let slug = IngredientSlug::from("recipe");
-        assert_eq!(IngredientSlug::from("recipe"), slug);
-        assert_eq!(
-            IngredientSlug::from(Facet::from("/ingredient/recipe")),
-            slug
-        );
-        let facet: Facet = slug.into();
-        assert_eq!(facet, Facet::from("/ingredient/recipe"));
-    }
+    original_score * tweak
 }

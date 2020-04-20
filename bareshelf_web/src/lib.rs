@@ -4,7 +4,8 @@ use actix_session::CookieSession;
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use tera::Tera;
 
-pub mod routes;
+mod routes;
+mod views;
 
 pub async fn run_server() -> std::io::Result<()> {
     let cookie_key =

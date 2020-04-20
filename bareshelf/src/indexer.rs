@@ -1,4 +1,4 @@
-use crate::{error::Result, ingredients_schema, recipes_schema};
+use crate::{datatypes::{Recipe, Ingredient}, error::Result, ingredients_schema, recipes_schema};
 
 pub struct Indexer {
     recipes_writer: tantivy::IndexWriter,
@@ -10,7 +10,7 @@ pub struct Indexer {
 }
 
 impl Indexer {
-    pub(crate) fn new(recipes: tantivy::Index, ingredients: tantivy::Index) -> Result<Indexer> {
+    pub(crate) fn new(recipes: &tantivy::Index, ingredients: &tantivy::Index) -> Result<Indexer> {
         let recipes_schema = recipes_schema();
         let ingredients_schema = ingredients_schema();
         Ok(Indexer {
@@ -30,6 +30,7 @@ impl Indexer {
             ],
         })
     }
+
     pub fn commit(&mut self) -> Result<()> {
         self.recipes_writer.commit()?;
         self.ingredients_writer.commit()?;
@@ -70,45 +71,5 @@ impl Indexer {
         document.add_text(self.ingredients_fields[0], &ingredient.name);
         document.add_text(self.ingredients_fields[1], &ingredient.slug);
         document
-    }
-}
-
-pub struct Recipe {
-    pub title: String,
-    pub slug: String,
-    pub url: String,
-    pub chef_name: Option<String>,
-    pub ingredients: Vec<Ingredient>,
-}
-
-impl Recipe {
-    pub fn new(
-        title: &str,
-        slug: &str,
-        url: &str,
-        chef_name: Option<&str>,
-        ingredients: Vec<Ingredient>,
-    ) -> Self {
-        Self {
-            title: String::from(title),
-            slug: String::from(slug),
-            url: String::from(url),
-            chef_name: chef_name.map(|s| String::from(s)),
-            ingredients,
-        }
-    }
-}
-
-pub struct Ingredient {
-    pub name: String,
-    pub slug: String,
-}
-
-impl Ingredient {
-    pub fn new(name: &str, slug: &str) -> Self {
-        Self {
-            name: String::from(name),
-            slug: String::from(slug),
-        }
     }
 }

@@ -1,27 +1,29 @@
 use std::path::Path;
 use tantivy::schema::{STORED, STRING, TEXT};
 
+mod datatypes;
 mod error;
 mod indexer;
 mod searcher;
 
 pub use crate::{
+    datatypes::{Ingredient, IngredientSlug, Recipe},
     error::Result,
-    indexer::{Indexer, Ingredient, Recipe},
-    searcher::{IngredientSlug, RecipeSearchResult, Searcher},
+    indexer::Indexer,
+    searcher::{RecipeSearchResult, Searcher},
 };
 
 pub fn indexer(path: &Path) -> Result<Indexer> {
     Indexer::new(
-        open_or_create_index(path.join("recipes").as_path(), recipes_schema())?,
-        open_or_create_index(path.join("ingredients").as_path(), ingredients_schema())?,
+        &open_or_create_index(path.join("recipes").as_path(), recipes_schema())?,
+        &open_or_create_index(path.join("ingredients").as_path(), ingredients_schema())?,
     )
 }
 
 pub fn searcher(path: &Path) -> Result<Searcher> {
     Searcher::new(
-        open_index(path.join("recipes").as_path())?,
-        open_index(path.join("ingredients").as_path())?,
+        &open_index(path.join("recipes").as_path())?,
+        &open_index(path.join("ingredients").as_path())?,
     )
 }
 
@@ -60,48 +62,50 @@ fn ingredients_schema() -> tantivy::schema::Schema {
 mod tests {
     use super::*;
 
-    struct TestIndex(String);
-
-    impl Drop for TestIndex {
-        fn drop(&mut self) {
-            std::fs::remove_dir_all(&self.0).unwrap();
-        }
-    }
-
     #[test]
     fn tweak_score_with_facets() {
-        let data = TestIndex("/tmp/bareshelf/test-index".to_string());
-        let mut indexer = indexer(Path::new(&data.0)).unwrap();
-        indexer.add_recipe(Recipe::new(
-            "Fried egg",
-            "fried-egg",
-            vec![Ingredient::new("Egg", "egg"), Ingredient::new("Oil", "oil")],
-        ));
-        indexer.add_recipe(Recipe::new(
-            "Scrambled egg",
-            "scrambled-egg",
-            vec![
-                Ingredient::new("Egg", "egg"),
-                Ingredient::new("Butter", "butter"),
-                Ingredient::new("Milk", "milk"),
-                Ingredient::new("Salt", "salt"),
-            ],
-        ));
-        indexer.add_recipe(Recipe::new(
-            "Egg rolls",
-            "egg-rolls",
-            vec![
-                Ingredient::new("Egg", "egg"),
-                Ingredient::new("Garlic", "garlic"),
-                Ingredient::new("Salt", "salt"),
-                Ingredient::new("Oil", "oil"),
-                Ingredient::new("Tortilla wrap", "tortilla-wrap"),
-                Ingredient::new("Mushroom", "mushroom"),
-            ],
-        ));
-        indexer.commit().unwrap();
+        let recipes_index = tantivy::Index::create_in_ram(recipes_schema());
+        let ingredients_index = tantivy::Index::create_in_ram(ingredients_schema());
+        {
+            let mut indexer = Indexer::new(&recipes_index, &ingredients_index).unwrap();
 
-        let searcher = searcher(Path::new(&data.0)).unwrap();
+            indexer.add_recipe(Recipe::new(
+                "Fried egg",
+                "fried-egg",
+                "http://example.org/one",
+                None,
+                vec![Ingredient::new("Egg", "egg"), Ingredient::new("Oil", "oil")],
+            ));
+            indexer.add_recipe(Recipe::new(
+                "Scrambled egg",
+                "scrambled-egg",
+                "http://example.org/two",
+                None,
+                vec![
+                    Ingredient::new("Egg", "egg"),
+                    Ingredient::new("Butter", "butter"),
+                    Ingredient::new("Milk", "milk"),
+                    Ingredient::new("Salt", "salt"),
+                ],
+            ));
+            indexer.add_recipe(Recipe::new(
+                "Egg rolls",
+                "egg-rolls",
+                "http://example.org/three",
+                None,
+                vec![
+                    Ingredient::new("Egg", "egg"),
+                    Ingredient::new("Garlic", "garlic"),
+                    Ingredient::new("Salt", "salt"),
+                    Ingredient::new("Oil", "oil"),
+                    Ingredient::new("Tortilla wrap", "tortilla-wrap"),
+                    Ingredient::new("Mushroom", "mushroom"),
+                ],
+            ));
+            indexer.commit().unwrap();
+        }
+
+        let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
         let query_ingredients = vec!["egg", "oil", "garlic", "mushroom"]
             .into_iter()
             .map(String::from)
@@ -113,9 +117,31 @@ mod tests {
         assert_eq!(
             results
                 .iter()
-                .map(|r| r.recipe_title.to_owned())
+                .map(|r| r.recipe.title.to_owned())
                 .collect::<Vec<String>>(),
             vec!["Fried egg", "Egg rolls"]
         );
+    }
+
+    #[test]
+    fn ingredients_by_name() {
+        let recipes_index = tantivy::Index::create_in_ram(recipes_schema());
+        let ingredients_index = tantivy::Index::create_in_ram(ingredients_schema());
+        {
+            let mut indexer = Indexer::new(&recipes_index, &ingredients_index).unwrap();
+            indexer.add_ingredient(Ingredient::new("Sugar", "sugar"));
+            indexer.add_ingredient(Ingredient::new("Egg", "egg"));
+            indexer.add_ingredient(Ingredient::new("Brown sugar", "brown-sugar"));
+            indexer.commit().unwrap();
+        }
+
+        {
+            let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
+            let ingredient = searcher.ingredient_by_name("Sugar").unwrap();
+
+            assert_eq!(ingredient.name, "Sugar");
+
+        }
+
     }
 }

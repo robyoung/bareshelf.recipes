@@ -412,6 +412,7 @@ dependencies = [
 name = "bareshelf"
 version = "0.1.0"
 dependencies = [
+ "log",
  "serde",
  "structopt",
  "tantivy",
@@ -442,6 +443,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tera",
+ "url",
 ]
 
 [[package]]

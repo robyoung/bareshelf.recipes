@@ -1,13 +1,12 @@
-use std::collections::HashSet;
-
 use actix_session::Session;
 use actix_web::{error, http, web, Error, HttpResponse, Responder};
 use log::info;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
-use url;
 
-use bareshelf::RecipeSearchResult;
+use bareshelf::Ingredient;
+
+use crate::views::RecipeSearchResult;
 
 pub(crate) async fn status() -> impl Responder {
     HttpResponse::Ok().json(json!({"status": "ok"}))
@@ -24,6 +23,7 @@ pub(crate) async fn index(
 
     if !ingredients.is_empty() {
         info!("Searching with ingredients: {:?}", ingredients);
+        let ingredients: Vec<_> = ingredients.iter().map(|i| i.slug.clone()).collect();
         let recipes = searcher
             .recipes_by_ingredients(&ingredients, 100)
             .map_err(|_| error::ErrorInternalServerError("failed to search"))?;
@@ -31,55 +31,12 @@ pub(crate) async fn index(
             "recipes",
             &recipes
                 .into_iter()
-                .map(Recipe::from)
-                .collect::<Vec<Recipe>>(),
+                .map(RecipeSearchResult::from)
+                .collect::<Vec<_>>(),
         );
     }
 
     render(tera, "index.html", Some(&ctx))
-}
-
-#[derive(Serialize)]
-pub struct Recipe {
-    score: f32,
-    title: String,
-    url: String,
-    source: String,
-    chef_name: Option<String>,
-    ingredients: Vec<Ingredient>,
-    num_missing: usize,
-}
-
-impl From<RecipeSearchResult> for Recipe {
-    fn from(recipe: RecipeSearchResult) -> Self {
-        let missing: HashSet<_> = recipe.missing_ingredients.iter().collect();
-        Recipe {
-            score: recipe.score,
-            title: recipe.recipe_title,
-            url: recipe.recipe_url.clone(),
-            source: url::Url::parse(&recipe.recipe_url)
-                .unwrap()
-                .host_str()
-                .unwrap()
-                .to_owned(),
-            chef_name: recipe.recipe_chef_name,
-            ingredients: recipe
-                .ingredient_slugs
-                .iter()
-                .map(|slug| Ingredient {
-                    slug: slug.to_owned(),
-                    is_missing: missing.contains(slug),
-                })
-                .collect(),
-            num_missing: missing.len(),
-        }
-    }
-}
-
-#[derive(Serialize)]
-pub struct Ingredient {
-    slug: String,
-    is_missing: bool,
 }
 
 #[derive(Deserialize)]
@@ -89,10 +46,15 @@ pub struct IngredientForm {
 
 pub(crate) async fn add_ingredient(
     form: web::Form<IngredientForm>,
+    searcher: web::Data<bareshelf::Searcher>,
     session: Session,
 ) -> Result<HttpResponse, Error> {
+    // TODO: set a failure message in the flash
+    let ingredient = searcher.ingredient_by_name(&form.ingredient)
+        .map_err(|_| error::ErrorNotFound(format!("ingredient not found: {:?}", form.ingredient)))?;
+
     let mut ingredients = get_ingredients(&session)?;
-    ingredients.push(form.ingredient.to_owned());
+    ingredients.push(ingredient);
     ingredients.sort_unstable();
     set_ingredients(&session, ingredients)?;
 
@@ -107,7 +69,7 @@ pub(crate) async fn remove_ingredient(
         &session,
         get_ingredients(&session)?
             .into_iter()
-            .filter(|i| *i != form.ingredient)
+            .filter(|i| *i.slug != form.ingredient)
             .collect(),
     )?;
 
@@ -129,14 +91,14 @@ pub(crate) async fn ingredients(
     Ok(HttpResponse::Ok().json(ingredients))
 }
 
-fn get_ingredients(session: &Session) -> Result<Vec<String>, Error> {
+fn get_ingredients(session: &Session) -> Result<Vec<Ingredient>, Error> {
     Ok(session
         .get("ingredients")
-        .map_err(|_| error::ErrorInternalServerError("invalid ingredients list"))?
+        .unwrap_or_else(|_| {session.remove("ingredients"); None})
         .unwrap_or_default())
 }
 
-fn set_ingredients(session: &Session, ingredients: Vec<String>) -> Result<(), Error> {
+fn set_ingredients(session: &Session, ingredients: Vec<Ingredient>) -> Result<(), Error> {
     session
         .set("ingredients", ingredients)
         .map_err(|_| error::ErrorInternalServerError("failed to set ingredients"))

@@ -42,18 +42,18 @@ fn main() -> Result<()> {
                 .recipes_by_ingredients(&search_facets, limit)?
                 .iter()
                 .for_each(|recipe| {
-                    println!("\n> {}    ({})", recipe.recipe_title, recipe.score);
+                    println!("\n> {}    ({})", recipe.recipe.title, recipe.score);
                     println!(
                         "{} matching, {} missing",
-                        recipe.ingredient_slugs.len() - recipe.missing_ingredients.len(),
+                        recipe.recipe.ingredients.len() - recipe.missing_ingredients.len(),
                         recipe.missing_ingredients.len()
                     );
                     println!("Missing: {:?}", recipe.missing_ingredients);
                     let missing_set: HashSet<_> =
                         recipe.missing_ingredients.iter().cloned().collect();
-                    for ingredient in &recipe.ingredient_slugs {
-                        print!("    - {}", ingredient);
-                        if missing_set.contains(ingredient) {
+                    for ingredient in &recipe.recipe.ingredients {
+                        print!("    - {}", ingredient.slug);
+                        if missing_set.contains(&ingredient.slug) {
                             print!("  - MISSING");
                         }
                         println!();
