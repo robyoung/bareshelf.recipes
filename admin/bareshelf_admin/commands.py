@@ -21,10 +21,15 @@ def index():
 
     print("Indexing recipes...", flush=True, end="")
     for recipe in db.session.query(Recipe):
-        doc = bareshelf_indexer.Recipe(recipe.title, recipe.slug)
+        doc = bareshelf_indexer.Recipe(recipe.title, recipe.slug, recipe.url)
+
+        if recipe.chef_name:
+            doc.chef_name = recipe.chef_name
+
         for ingredient in recipe.ingredients:
             if ingredient.ingredient is not None:
                 doc.add_ingredient(ingredient.ingredient.name, ingredient.ingredient.slug)
+
         index.add_recipe(doc)
     print("DONE")
 

@@ -2,7 +2,8 @@ use crate::{error::Result, ingredients_schema, recipes_schema};
 
 pub struct Indexer {
     recipes_writer: tantivy::IndexWriter,
-    recipes_fields: [tantivy::schema::Field; 4],
+    // TODO: don't do this as the clones aren't expensive
+    recipes_fields: [tantivy::schema::Field; 6],
 
     ingredients_writer: tantivy::IndexWriter,
     ingredients_fields: [tantivy::schema::Field; 2],
@@ -17,6 +18,8 @@ impl Indexer {
             recipes_fields: [
                 recipes_schema.get_field("title").unwrap(),
                 recipes_schema.get_field("slug").unwrap(),
+                recipes_schema.get_field("url").unwrap(),
+                recipes_schema.get_field("chef_name").unwrap(),
                 recipes_schema.get_field("ingredient_name").unwrap(),
                 recipes_schema.get_field("ingredient_slug").unwrap(),
             ],
@@ -42,10 +45,15 @@ impl Indexer {
         let mut document = tantivy::schema::Document::default();
         document.add_text(self.recipes_fields[0], &recipe.title);
         document.add_text(self.recipes_fields[1], &recipe.slug);
+        document.add_text(self.recipes_fields[2], &recipe.url);
+        if let Some(chef_name) = &recipe.chef_name {
+            document.add_text(self.recipes_fields[3], &chef_name);
+        }
+
         recipe.ingredients.iter().for_each(|ingredient| {
-            document.add_text(self.recipes_fields[2], &ingredient.name);
+            document.add_text(self.recipes_fields[4], &ingredient.name);
             document.add_facet(
-                self.recipes_fields[3],
+                self.recipes_fields[5],
                 &format!("/ingredient/{}", ingredient.slug),
             );
         });
@@ -68,14 +76,24 @@ impl Indexer {
 pub struct Recipe {
     pub title: String,
     pub slug: String,
+    pub url: String,
+    pub chef_name: Option<String>,
     pub ingredients: Vec<Ingredient>,
 }
 
 impl Recipe {
-    pub fn new(title: &str, slug: &str, ingredients: Vec<Ingredient>) -> Self {
+    pub fn new(
+        title: &str,
+        slug: &str,
+        url: &str,
+        chef_name: Option<&str>,
+        ingredients: Vec<Ingredient>,
+    ) -> Self {
         Self {
             title: String::from(title),
             slug: String::from(slug),
+            url: String::from(url),
+            chef_name: chef_name.map(|s| String::from(s)),
             ingredients,
         }
     }

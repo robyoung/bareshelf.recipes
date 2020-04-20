@@ -49,7 +49,9 @@ class Recipe(db.Model, Getters):  # type: ignore
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     title = db.Column(db.String, nullable=False, unique=False)
 
-    ingredients = db.relationship("RecipeIngredient", back_populates="recipe")
+    chef_name = db.Column(db.String, nullable=True)
+
+    ingredients = db.relationship("RecipeIngredient", back_populates="recipe", lazy="joined")
 
     def __repr__(self) -> str:
         return f'<Recipe "{self.title}">'

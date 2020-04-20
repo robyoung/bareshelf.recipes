@@ -42,6 +42,8 @@ fn recipes_schema() -> tantivy::schema::Schema {
     let mut schema_builder = tantivy::schema::Schema::builder();
     schema_builder.add_text_field("title", TEXT | STORED);
     schema_builder.add_text_field("slug", STRING | STORED);
+    schema_builder.add_text_field("url", STORED);
+    schema_builder.add_text_field("chef_name", STORED);
     schema_builder.add_facet_field("ingredient_slug");
     schema_builder.add_text_field("ingredient_name", TEXT | STORED);
     schema_builder.build()

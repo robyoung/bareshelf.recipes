@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use serde::Serialize;
 use tantivy::{
     collector::{Count, FacetCollector, TopDocs},
     fastfield::FacetReader,
@@ -7,7 +8,6 @@ use tantivy::{
     schema::{Facet, Field, Term, Value},
     DocId, Document, IndexReader, Score, SegmentReader,
 };
-use serde::Serialize;
 
 use crate::error::Result;
 
@@ -15,6 +15,8 @@ use crate::error::Result;
 pub struct Searcher {
     recipes_reader: IndexReader,
     recipes_title: Field,
+    recipes_url: Field,
+    recipes_chef_name: Field,
     recipes_ingredient_slug: Field,
 
     ingredients_reader: IndexReader,
@@ -31,6 +33,8 @@ impl Searcher {
             recipes_reader: recipes.reader()?,
             recipes_title: recipes_schema.get_field("title").unwrap(),
             recipes_ingredient_slug: recipes_schema.get_field("ingredient_slug").unwrap(),
+            recipes_url: recipes_schema.get_field("url").unwrap(),
+            recipes_chef_name: recipes_schema.get_field("chef_name").unwrap(),
 
             ingredients_reader: ingredients.reader()?,
             ingredients_name: ingredients_schema.get_field("name").unwrap(),
@@ -57,6 +61,8 @@ impl Searcher {
     ) -> Result<Vec<RecipeSearchResult>> {
         let ingredient_slug_field = self.recipes_ingredient_slug;
         let recipe_title_field = self.recipes_title;
+        let recipe_url_field = self.recipes_url;
+        let recipe_chef_name_field = self.recipes_chef_name;
 
         let ingredients: Vec<IngredientSlug> =
             ingredients.iter().map(IngredientSlug::from).collect();
@@ -95,6 +101,20 @@ impl Searcher {
                     .text()
                     .unwrap()
                     .to_string();
+                let recipe_url = document.get_all(recipe_url_field)[0]
+                    .text()
+                    .unwrap()
+                    .to_string();
+
+                // TODO: improve this
+                let chef_name_parts = document.get_all(recipe_chef_name_field);
+
+                let recipe_chef_name = if chef_name_parts.len() > 0 {
+                    Some(chef_name_parts[0].text().unwrap().to_string())
+                } else {
+                    None
+                };
+
                 let ingredient_slugs: Vec<IngredientSlug> = document
                     .get_all(ingredient_slug_field)
                     .iter()
@@ -113,6 +133,8 @@ impl Searcher {
                     score: *score,
                     document,
                     recipe_title,
+                    recipe_url,
+                    recipe_chef_name,
                     ingredient_slugs: ingredient_slugs.iter().map(Into::into).collect(),
                     missing_ingredients: missing_ingredients.iter().map(Into::into).collect(),
                 }
@@ -154,6 +176,8 @@ pub struct RecipeSearchResult {
     pub score: Score,
     pub document: Document, // TODO: something more useful
     pub recipe_title: String,
+    pub recipe_url: String,
+    pub recipe_chef_name: Option<String>,
     pub ingredient_slugs: Vec<String>,
     pub missing_ingredients: Vec<String>,
 }
@@ -182,7 +206,10 @@ fn calculate_score(
     query_ords: &HashSet<u64>,
 ) -> Score {
     ingredient_reader.facet_ords(doc, facet_ords_buffer);
-    let missing_ingredients = facet_ords_buffer.iter().filter(|o| !query_ords.contains(o)).count();
+    let missing_ingredients = facet_ords_buffer
+        .iter()
+        .filter(|o| !query_ords.contains(o))
+        .count();
     let tweak = 1.0 / 4_f32.powi(missing_ingredients as i32);
 
     let tweaked_score = original_score * tweak;

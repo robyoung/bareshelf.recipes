@@ -36,6 +36,8 @@ impl Index {
 struct Recipe {
     title: String,
     slug: String,
+    url: String,
+    chef_name: Option<String>,
     ingredients: Vec<Ingredient>,
 }
 
@@ -44,6 +46,8 @@ impl Into<BareshelfRecipe> for Recipe {
         BareshelfRecipe {
             title: self.title,
             slug: self.slug,
+            url: self.url,
+            chef_name: self.chef_name,
             ingredients: self.ingredients.iter().cloned().map(Into::into).collect(),
         }
     }
@@ -52,12 +56,19 @@ impl Into<BareshelfRecipe> for Recipe {
 #[pymethods]
 impl Recipe {
     #[new]
-    fn new(title: String, slug: String) -> Self {
+    fn new(title: String, slug: String, url: String) -> Self {
         Self {
             title,
             slug,
+            url,
+            chef_name: None,
             ingredients: vec![],
         }
+    }
+
+    #[setter]
+    fn set_chef_name(&mut self, chef_name: String) {
+        self.chef_name = Some(chef_name);
     }
 
     pub fn add_ingredient(&mut self, name: String, slug: String) {
