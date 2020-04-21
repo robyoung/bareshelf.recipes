@@ -4,7 +4,7 @@ use log::info;
 use serde::Deserialize;
 use serde_json::json;
 
-use bareshelf::Ingredient;
+use bareshelf::{Error as BareshelfError, Ingredient};
 
 use crate::views::RecipeSearchResult;
 
@@ -20,6 +20,7 @@ pub(crate) async fn index(
     let ingredients = get_ingredients(&session)?;
     let mut ctx = tera::Context::new();
     ctx.insert("ingredients", &ingredients);
+    ctx.insert("flash", &pop_flash(&session)?);
 
     if !ingredients.is_empty() {
         info!("Searching with ingredients: {:?}", ingredients);
@@ -49,14 +50,38 @@ pub(crate) async fn add_ingredient(
     searcher: web::Data<bareshelf::Searcher>,
     session: Session,
 ) -> Result<HttpResponse, Error> {
-    // TODO: set a failure message in the flash
-    let ingredient = searcher.ingredient_by_name(&form.ingredient)
-        .map_err(|_| error::ErrorNotFound(format!("ingredient not found: {:?}", form.ingredient)))?;
+    let ingredient = searcher
+        .ingredient_by_name(&form.ingredient)
+        .or_else(|_| {
+            let (mut ingredients, _) = searcher.ingredients_by_prefix(&form.ingredient)?;
 
-    let mut ingredients = get_ingredients(&session)?;
-    ingredients.push(ingredient);
-    ingredients.sort_unstable();
-    set_ingredients(&session, ingredients)?;
+            if ingredients.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(ingredients.remove(0)))
+            }
+        })
+        .map_err(|_: BareshelfError| error::ErrorInternalServerError("search error"))?;
+
+    if let Some(ingredient) = ingredient {
+        let mut ingredients = get_ingredients(&session)?;
+        if ingredients.iter().find(|&i| i == &ingredient).is_none() {
+            set_flash(
+                &session,
+                &format!("Added {} to your shelf", ingredient.name),
+            )?;
+            ingredients.push(ingredient);
+            ingredients.sort_unstable();
+            set_ingredients(&session, ingredients)?;
+        } else {
+            set_flash(
+                &session,
+                &format!("{} is already in your shelf", ingredient.name),
+            )?;
+        }
+    } else {
+        set_flash(&session, &format!("No ingredients found matching \"{}\"", form.ingredient))?;
+    }
 
     Ok(found("/"))
 }
@@ -65,13 +90,22 @@ pub(crate) async fn remove_ingredient(
     form: web::Form<IngredientForm>,
     session: Session,
 ) -> Result<HttpResponse, Error> {
-    set_ingredients(
-        &session,
-        get_ingredients(&session)?
-            .into_iter()
-            .filter(|i| *i.slug != form.ingredient)
-            .collect(),
-    )?;
+    let ingredients = get_ingredients(&session)?;
+    let ingredient = ingredients.iter().find(|i| *i.slug == form.ingredient);
+    if let Some(ingredient) = ingredient {
+        set_flash(
+            &session,
+            &format!("Removed {} from your shelf", ingredient.name),
+        )?;
+
+        set_ingredients(
+            &session,
+            ingredients
+                .into_iter()
+                .filter(|i| *i.slug != form.ingredient)
+                .collect(),
+        )?;
+    }
 
     Ok(found("/"))
 }
@@ -94,7 +128,10 @@ pub(crate) async fn ingredients(
 fn get_ingredients(session: &Session) -> Result<Vec<Ingredient>, Error> {
     Ok(session
         .get("ingredients")
-        .unwrap_or_else(|_| {session.remove("ingredients"); None})
+        .unwrap_or_else(|_| {
+            session.remove("ingredients");
+            None
+        })
         .unwrap_or_default())
 }
 
@@ -102,6 +139,22 @@ fn set_ingredients(session: &Session, ingredients: Vec<Ingredient>) -> Result<()
     session
         .set("ingredients", ingredients)
         .map_err(|_| error::ErrorInternalServerError("failed to set ingredients"))
+}
+
+fn set_flash(session: &Session, message: &str) -> Result<(), Error> {
+    session
+        .set("flash", message)
+        .map_err(|_| error::ErrorInternalServerError("failed to set flash"))
+}
+
+fn pop_flash(session: &Session) -> Result<Option<String>, Error> {
+    let flash = session
+        .get("flash")
+        .map_err(|_| error::ErrorInternalServerError("failed to get flash"))?;
+    if flash.is_some() {
+        session.remove("flash");
+    }
+    Ok(flash)
 }
 
 fn render(

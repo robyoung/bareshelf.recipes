@@ -21,6 +21,9 @@ enum Command {
         limit: usize,
         facets: Vec<String>,
     },
+    IngredientsByPrefix {
+        prefix: String,
+    },
 }
 
 fn main() -> Result<()> {
@@ -58,6 +61,15 @@ fn main() -> Result<()> {
                         }
                         println!();
                     }
+                });
+        }
+        Command::IngredientsByPrefix { prefix } => {
+            searcher
+                .ingredients_by_prefix(&prefix)?
+                .0
+                .iter()
+                .for_each(|ingredient| {
+                    println!("{:?}", ingredient);
                 });
         }
     }

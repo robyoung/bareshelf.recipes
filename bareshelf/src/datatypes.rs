@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use serde::{Deserialize, Serialize};
 use tantivy::{
-    schema::{Field, Schema, Facet, Value},
+    schema::{Facet, Field, Schema, Value},
     Document,
 };
 
@@ -45,14 +45,12 @@ impl Recipe {
                     doc.get_all(schema.get_field("ingredient_slug").unwrap())
                         .iter(),
                 )
-                .map(|(name, slug)| {
-                    Ingredient {
-                        name: name.text().unwrap().to_string(),
-                        slug: match slug {
-                            Value::Facet(value) => IngredientSlug::from(value).into(),
-                            _ => unreachable!(),
-                        },
-                    }
+                .map(|(name, slug)| Ingredient {
+                    name: name.text().unwrap().to_string(),
+                    slug: match slug {
+                        Value::Facet(value) => IngredientSlug::from(value).into(),
+                        _ => unreachable!(),
+                    },
                 })
                 .collect(),
         })
@@ -89,7 +87,6 @@ impl Ord for Ingredient {
         self.slug.cmp(&other.slug)
     }
 }
-
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct IngredientSlug(String);
@@ -153,7 +150,6 @@ impl Into<String> for IngredientSlug {
         (&self).into()
     }
 }
-
 
 #[cfg(test)]
 mod tests {

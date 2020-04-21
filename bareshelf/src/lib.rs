@@ -8,7 +8,7 @@ mod searcher;
 
 pub use crate::{
     datatypes::{Ingredient, IngredientSlug, Recipe},
-    error::Result,
+    error::{Error, Result},
     indexer::Indexer,
     searcher::{RecipeSearchResult, Searcher},
 };
@@ -62,48 +62,61 @@ fn ingredients_schema() -> tantivy::schema::Schema {
 mod tests {
     use super::*;
 
+    fn index_recipes(recipes_index: &tantivy::Index, ingredients_index: &tantivy::Index) {
+        let mut indexer = Indexer::new(&recipes_index, &ingredients_index).unwrap();
+
+        indexer.add_recipe(Recipe::new(
+            "Fried egg",
+            "fried-egg",
+            "http://example.org/one",
+            None,
+            vec![Ingredient::new("Egg", "egg"), Ingredient::new("Oil", "oil")],
+        ));
+        indexer.add_recipe(Recipe::new(
+            "Scrambled egg",
+            "scrambled-egg",
+            "http://example.org/two",
+            None,
+            vec![
+                Ingredient::new("Egg", "egg"),
+                Ingredient::new("Butter", "butter"),
+                Ingredient::new("Milk", "milk"),
+                Ingredient::new("Salt", "salt"),
+            ],
+        ));
+        indexer.add_recipe(Recipe::new(
+            "Egg rolls",
+            "egg-rolls",
+            "http://example.org/three",
+            None,
+            vec![
+                Ingredient::new("Egg", "egg"),
+                Ingredient::new("Garlic", "garlic"),
+                Ingredient::new("Salt", "salt"),
+                Ingredient::new("Oil", "oil"),
+                Ingredient::new("Tortilla wrap", "tortilla-wrap"),
+                Ingredient::new("Mushroom", "mushroom"),
+            ],
+        ));
+        indexer.commit().unwrap();
+    }
+
+    fn index_ingredients(recipes_index: &tantivy::Index, ingredients_index: &tantivy::Index) {
+        let mut indexer = Indexer::new(&recipes_index, &ingredients_index).unwrap();
+        indexer.add_ingredient(Ingredient::new("Peanut butter", "peanut-butter"));
+        indexer.add_ingredient(Ingredient::new("Sugar", "sugar"));
+        indexer.add_ingredient(Ingredient::new("Egg", "egg"));
+        indexer.add_ingredient(Ingredient::new("Butter", "butter"));
+        indexer.add_ingredient(Ingredient::new("Butter beans", "butter-beans"));
+        indexer.add_ingredient(Ingredient::new("Brown sugar", "brown-sugar"));
+        indexer.commit().unwrap();
+    }
+
     #[test]
     fn tweak_score_with_facets() {
         let recipes_index = tantivy::Index::create_in_ram(recipes_schema());
         let ingredients_index = tantivy::Index::create_in_ram(ingredients_schema());
-        {
-            let mut indexer = Indexer::new(&recipes_index, &ingredients_index).unwrap();
-
-            indexer.add_recipe(Recipe::new(
-                "Fried egg",
-                "fried-egg",
-                "http://example.org/one",
-                None,
-                vec![Ingredient::new("Egg", "egg"), Ingredient::new("Oil", "oil")],
-            ));
-            indexer.add_recipe(Recipe::new(
-                "Scrambled egg",
-                "scrambled-egg",
-                "http://example.org/two",
-                None,
-                vec![
-                    Ingredient::new("Egg", "egg"),
-                    Ingredient::new("Butter", "butter"),
-                    Ingredient::new("Milk", "milk"),
-                    Ingredient::new("Salt", "salt"),
-                ],
-            ));
-            indexer.add_recipe(Recipe::new(
-                "Egg rolls",
-                "egg-rolls",
-                "http://example.org/three",
-                None,
-                vec![
-                    Ingredient::new("Egg", "egg"),
-                    Ingredient::new("Garlic", "garlic"),
-                    Ingredient::new("Salt", "salt"),
-                    Ingredient::new("Oil", "oil"),
-                    Ingredient::new("Tortilla wrap", "tortilla-wrap"),
-                    Ingredient::new("Mushroom", "mushroom"),
-                ],
-            ));
-            indexer.commit().unwrap();
-        }
+        index_recipes(&recipes_index, &ingredients_index);
 
         let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
         let query_ingredients = vec!["egg", "oil", "garlic", "mushroom"]
@@ -127,21 +140,36 @@ mod tests {
     fn ingredients_by_name() {
         let recipes_index = tantivy::Index::create_in_ram(recipes_schema());
         let ingredients_index = tantivy::Index::create_in_ram(ingredients_schema());
-        {
-            let mut indexer = Indexer::new(&recipes_index, &ingredients_index).unwrap();
-            indexer.add_ingredient(Ingredient::new("Sugar", "sugar"));
-            indexer.add_ingredient(Ingredient::new("Egg", "egg"));
-            indexer.add_ingredient(Ingredient::new("Brown sugar", "brown-sugar"));
-            indexer.commit().unwrap();
-        }
+        index_ingredients(&recipes_index, &ingredients_index);
 
-        {
-            let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
-            let ingredient = searcher.ingredient_by_name("Sugar").unwrap();
+        let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
+        let ingredient = searcher.ingredient_by_name("Sugar").unwrap();
 
-            assert_eq!(ingredient.name, "Sugar");
+        assert_eq!(ingredient.name, "Sugar");
+    }
 
-        }
+    #[test]
+    fn ingredients_by_prefix() {
+        let recipes_index = tantivy::Index::create_in_ram(recipes_schema());
+        let ingredients_index = tantivy::Index::create_in_ram(ingredients_schema());
+        index_ingredients(&recipes_index, &ingredients_index);
 
+        let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
+        let ingredients = searcher.ingredients_by_prefix("brown su").unwrap();
+
+        assert_eq!(ingredients.0[0].name, "Brown sugar");
+    }
+
+    #[test]
+    fn ingredients_by_prefix_butter() {
+        let recipes_index = tantivy::Index::create_in_ram(recipes_schema());
+        let ingredients_index = tantivy::Index::create_in_ram(ingredients_schema());
+        index_ingredients(&recipes_index, &ingredients_index);
+
+        let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
+        let ingredients = searcher.ingredients_by_prefix("butt").unwrap();
+        println!("{:?}", ingredients);
+
+        assert_eq!(ingredients.0[0].name, "Butter");
     }
 }

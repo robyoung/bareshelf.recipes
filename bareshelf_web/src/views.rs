@@ -4,7 +4,6 @@ use std::collections::HashSet;
 
 use serde::Serialize;
 
-
 #[derive(Serialize)]
 pub struct RecipeSearchResult {
     score: f32,

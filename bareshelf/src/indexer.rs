@@ -1,4 +1,8 @@
-use crate::{datatypes::{Recipe, Ingredient}, error::Result, ingredients_schema, recipes_schema};
+use crate::{
+    datatypes::{Ingredient, Recipe},
+    error::Result,
+    ingredients_schema, recipes_schema,
+};
 
 pub struct Indexer {
     recipes_writer: tantivy::IndexWriter,
