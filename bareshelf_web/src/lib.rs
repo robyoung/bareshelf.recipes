@@ -6,6 +6,8 @@ use tera::Tera;
 
 mod routes;
 mod views;
+mod shelf;
+mod flash;
 
 pub async fn run_server() -> std::io::Result<()> {
     let cookie_key =
@@ -16,6 +18,7 @@ pub async fn run_server() -> std::io::Result<()> {
         let mut tera = Tera::new("/dev/null/*").unwrap();
         tera.add_raw_templates(vec![
             ("index.html", include_str!("../templates/index.html")),
+            ("ui2.html", include_str!("../templates/ui2.html")),
             ("base.html", include_str!("../templates/base.html")),
         ])
         .unwrap();
@@ -48,6 +51,7 @@ pub async fn run_server() -> std::io::Result<()> {
             .service(
                 web::scope("/")
                     .route("", web::get().to(routes::index))
+                    .route("/ui2", web::get().to(routes::ui2))
                     .route("/add-ingredient", web::post().to(routes::add_ingredient))
                     .route(
                         "/remove-ingredient",

@@ -3,8 +3,8 @@ use std::{cmp::Ordering, collections::HashSet};
 use tantivy::{
     collector::{Count, FacetCollector, TopDocs},
     fastfield::FacetReader,
-    query::{AllQuery, BooleanQuery, FuzzyTermQuery, Occur, Query, QueryParser},
-    schema::{Facet, Field, FieldType, Schema, Term},
+    query::{AllQuery, BooleanQuery, FuzzyTermQuery, TermQuery, Occur, Query, QueryParser},
+    schema::{Facet, Field, FieldType, Schema, Term, IndexRecordOption},
     tokenizer::Token,
     DocAddress, DocId, Document, IndexReader, LeasedItem, Score, SegmentReader,
 };
@@ -49,28 +49,64 @@ impl Searcher {
             .collect())
     }
 
+    // TODO: better api
     pub fn recipes_by_ingredients(
         &self,
         ingredients: &[String],
+        key_ingredients: &[String],
+        banned_ingredients: &[String],
         limit: usize,
     ) -> Result<Vec<RecipeSearchResult>> {
         let ingredient_slug_field = self.recipes_schema.get_field("ingredient_slug").unwrap();
 
         let ingredients: Vec<IngredientSlug> =
             ingredients.iter().map(IngredientSlug::from).collect();
+        let key_ingredients: Vec<IngredientSlug> =
+            key_ingredients.iter().map(IngredientSlug::from).collect();
+        let banned_ingredients: Vec<IngredientSlug> = banned_ingredients
+            .iter()
+            .map(IngredientSlug::from)
+            .collect();
+
         let search_igredients_set: HashSet<IngredientSlug> = ingredients.iter().cloned().collect();
-        let facets: Vec<Facet> = ingredients.iter().map(Into::into).collect();
-        let query = BooleanQuery::new_multiterms_query(
-            facets
+        let ingredients_facets: Vec<Facet> = ingredients.iter().map(Into::into).collect();
+        let key_ingredients_facets: Vec<Facet> = key_ingredients.iter().map(Into::into).collect();
+        let banned_ingredients_facets: Vec<Facet> = banned_ingredients.iter().map(Into::into).collect();
+        let query = BooleanQuery::from(
+            ingredients_facets
                 .iter()
-                .map(|facet| Term::from_facet(ingredient_slug_field, &facet))
-                .collect(),
+                .map(|facet| {
+                    let query: Box<dyn Query> = Box::new(TermQuery::new(
+                        Term::from_facet(ingredient_slug_field, &facet),
+                        IndexRecordOption::WithFreqs,
+                    ));
+                    (Occur::Should, query)
+                })
+                .chain(
+                    key_ingredients_facets.iter().map(|facet|{
+                    let query: Box<dyn Query> = Box::new(TermQuery::new(
+                        Term::from_facet(ingredient_slug_field, &facet),
+                        IndexRecordOption::WithFreqs,
+                    ));
+                    (Occur::Must, query)
+                    })
+                )
+                .chain(
+                    banned_ingredients_facets.iter().map(|facet|{
+                    let query: Box<dyn Query> = Box::new(TermQuery::new(
+                        Term::from_facet(ingredient_slug_field, &facet),
+                        IndexRecordOption::WithFreqs,
+                    ));
+                    (Occur::MustNot, query)
+                    })
+                )
+                .collect::<Vec<_>>(),
         );
         let top_docs_collector =
             TopDocs::with_limit(limit).tweak_score(move |segment_reader: &SegmentReader| {
                 let mut ingredient_reader =
                     segment_reader.facet_reader(ingredient_slug_field).unwrap();
-                let query_ords = get_query_ords(&facets, &ingredient_reader);
+                let query_ords = get_query_ords(&ingredients_facets, &ingredient_reader);
                 let mut facet_ords_buffer = Vec::with_capacity(20);
 
                 move |doc: DocId, original_score: Score| {

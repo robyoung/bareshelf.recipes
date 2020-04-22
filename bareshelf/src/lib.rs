@@ -124,7 +124,7 @@ mod tests {
             .map(String::from)
             .collect::<Vec<_>>();
         let results = searcher
-            .recipes_by_ingredients(&query_ingredients, 2)
+            .recipes_by_ingredients(&query_ingredients, &vec![], &vec![], 2)
             .unwrap();
 
         assert_eq!(
@@ -143,7 +143,7 @@ mod tests {
         index_ingredients(&recipes_index, &ingredients_index);
 
         let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
-        let ingredient = searcher.ingredient_by_name("Sugar").unwrap();
+        let ingredient = searcher.ingredient_by_name("Sugar").unwrap().unwrap();
 
         assert_eq!(ingredient.name, "Sugar");
     }

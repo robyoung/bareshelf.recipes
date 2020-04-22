@@ -42,7 +42,7 @@ fn main() -> Result<()> {
             facets: search_facets,
         } => {
             searcher
-                .recipes_by_ingredients(&search_facets, limit)?
+                .recipes_by_ingredients(&search_facets, &vec![], &vec![], limit)?
                 .iter()
                 .for_each(|recipe| {
                     println!("\n> {}    ({})", recipe.recipe.title, recipe.score);
