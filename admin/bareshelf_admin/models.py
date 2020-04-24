@@ -1,4 +1,5 @@
 from typing import Any, Optional
+from datetime import datetime
 
 from sqlalchemy import event
 
@@ -18,7 +19,14 @@ class Getters:
         return db.session.query(cls).filter(cls.slug == slug).first()
 
 
-class Ingredient(db.Model, Getters):  # type: ignore
+class Timestamps:
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+class Ingredient(db.Model, Getters, Timestamps):  # type: ignore
     __tablename__ = "ingredient"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -35,7 +43,7 @@ class Ingredient(db.Model, Getters):  # type: ignore
         return f'<Ingredient "{self.name}">'
 
 
-class QuantityUnit(db.Model):  # type: ignore
+class QuantityUnit(db.Model, Timestamps):  # type: ignore
     __tablename__ = "quantity_unit"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -43,21 +51,24 @@ class QuantityUnit(db.Model):  # type: ignore
     abbreviation = db.Column(db.String, nullable=True)
 
 
-class Recipe(db.Model, Getters):  # type: ignore
+class Recipe(db.Model, Getters, Timestamps):  # type: ignore
     __tablename__ = "recipe"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     title = db.Column(db.String, nullable=False, unique=False)
 
     chef_name = db.Column(db.String, nullable=True)
+    image_name = db.Column(db.String, nullable=True)
 
-    ingredients = db.relationship("RecipeIngredient", back_populates="recipe", lazy="joined")
+    ingredients = db.relationship(
+        "RecipeIngredient", back_populates="recipe", lazy="joined"
+    )
 
     def __repr__(self) -> str:
         return f'<Recipe "{self.title}">'
 
 
-class RecipeIngredient(db.Model):  # type: ignore
+class RecipeIngredient(db.Model, Timestamps):  # type: ignore
     __tablename__ = "recipe_ingredient"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -70,7 +81,9 @@ class RecipeIngredient(db.Model):  # type: ignore
     description = db.Column(db.String, nullable=False)
 
     recipe = db.relationship("Recipe", back_populates="ingredients")
-    ingredient = db.relationship("Ingredient", back_populates="recipe_ingredients")
+    ingredient = db.relationship(
+        "Ingredient", back_populates="recipe_ingredients", lazy="joined"
+    )
     quantity_unit = db.relationship("QuantityUnit")
 
 

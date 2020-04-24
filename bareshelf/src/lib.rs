@@ -45,6 +45,7 @@ fn recipes_schema() -> tantivy::schema::Schema {
     schema_builder.add_text_field("title", TEXT | STORED);
     schema_builder.add_text_field("slug", STRING | STORED);
     schema_builder.add_text_field("url", STORED);
+    schema_builder.add_text_field("image_name", STORED);
     schema_builder.add_text_field("chef_name", STORED);
     schema_builder.add_facet_field("ingredient_slug");
     schema_builder.add_text_field("ingredient_name", TEXT | STORED);
@@ -69,14 +70,12 @@ mod tests {
             "Fried egg",
             "fried-egg",
             "http://example.org/one",
-            None,
             vec![Ingredient::new("Egg", "egg"), Ingredient::new("Oil", "oil")],
         ));
         indexer.add_recipe(Recipe::new(
             "Scrambled egg",
             "scrambled-egg",
             "http://example.org/two",
-            None,
             vec![
                 Ingredient::new("Egg", "egg"),
                 Ingredient::new("Butter", "butter"),
@@ -88,7 +87,6 @@ mod tests {
             "Egg rolls",
             "egg-rolls",
             "http://example.org/three",
-            None,
             vec![
                 Ingredient::new("Egg", "egg"),
                 Ingredient::new("Garlic", "garlic"),

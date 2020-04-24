@@ -61,6 +61,10 @@ class SQLAlchemyPipeline:
         self, model: Any, instance: Optional[Any], item: Mapping[str, Any]
     ) -> Any:
         recipe_item = dict(item)
+        if item["images"]:
+            recipe_item["image_name"] = item["images"][0]["path"].split("/")[1]
+        recipe_item.pop("images", None)
+        recipe_item.pop("image_urls", None)
         ingredients = recipe_item.pop("ingredients")
 
         instance = self.basic_model(model, instance, recipe_item)
@@ -68,7 +72,7 @@ class SQLAlchemyPipeline:
         lookup = {ingredient["url"]: ingredient for ingredient in ingredients}
 
         for ingredient in instance.ingredients:
-            lookup_item = lookup.pop(ingredient.url, None)
+            lookup_item = lookup.pop(ingredient.ingredient.url, None)
             if lookup_item is None:
                 db.session.delete(ingredient)
             else:

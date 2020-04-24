@@ -11,6 +11,7 @@ pub struct RecipeSearchResult {
     url: String,
     source: String,
     chef_name: Option<String>,
+    image_name: Option<String>,
     ingredients: Vec<RecipeSearchResultIngredient>,
     num_missing: usize,
 }
@@ -28,6 +29,7 @@ impl From<bareshelf::RecipeSearchResult> for RecipeSearchResult {
                 .unwrap()
                 .to_owned(),
             chef_name: recipe.recipe.chef_name,
+            image_name: recipe.recipe.image_name,
             ingredients: recipe
                 .recipe
                 .ingredients

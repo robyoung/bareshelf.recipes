@@ -25,10 +25,14 @@ def index():
 
         if recipe.chef_name:
             doc.chef_name = recipe.chef_name
+        if recipe.image_name:
+            doc.image_name = recipe.image_name
 
         for ingredient in recipe.ingredients:
             if ingredient.ingredient is not None:
-                doc.add_ingredient(ingredient.ingredient.name, ingredient.ingredient.slug)
+                doc.add_ingredient(
+                    ingredient.ingredient.name, ingredient.ingredient.slug
+                )
 
         index.add_recipe(doc)
     print("DONE")

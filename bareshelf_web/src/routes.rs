@@ -3,9 +3,13 @@ use actix_web::{error, http, web, Error, HttpResponse, Responder};
 use serde::Deserialize;
 use serde_json::json;
 
-use bareshelf::{Error as BareshelfError};
+use bareshelf::Error as BareshelfError;
 
-use crate::{views::RecipeSearchResult, shelf, flash::{set_flash, pop_flash}};
+use crate::{
+    flash::{pop_flash, set_flash},
+    shelf,
+    views::RecipeSearchResult,
+};
 
 pub(crate) async fn status() -> impl Responder {
     HttpResponse::Ok().json(json!({"status": "ok"}))

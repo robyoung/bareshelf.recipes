@@ -38,6 +38,7 @@ struct Recipe {
     slug: String,
     url: String,
     chef_name: Option<String>,
+    image_name: Option<String>,
     ingredients: Vec<Ingredient>,
 }
 
@@ -48,6 +49,7 @@ impl Into<BareshelfRecipe> for Recipe {
             slug: self.slug,
             url: self.url,
             chef_name: self.chef_name,
+            image_name: self.image_name,
             ingredients: self.ingredients.iter().cloned().map(Into::into).collect(),
         }
     }
@@ -62,6 +64,7 @@ impl Recipe {
             slug,
             url,
             chef_name: None,
+            image_name: None,
             ingredients: vec![],
         }
     }
@@ -69,6 +72,11 @@ impl Recipe {
     #[setter]
     fn set_chef_name(&mut self, chef_name: String) {
         self.chef_name = Some(chef_name);
+    }
+
+    #[setter]
+    fn set_image_name(&mut self, image_name: String) {
+        self.image_name = Some(image_name);
     }
 
     pub fn add_ingredient(&mut self, name: String, slug: String) {

@@ -1,12 +1,16 @@
-use actix_web::{error, Error};
 use actix_session::Session;
-use serde::{Deserialize};
+use actix_web::{error, Error};
+use serde::Deserialize;
 
 use bareshelf::Ingredient;
 
 use crate::flash::set_flash;
 
-pub(crate) fn add_ingredient(session: &Session, bucket: &Bucket, ingredient: Ingredient) -> Result<(), Error> {
+pub(crate) fn add_ingredient(
+    session: &Session,
+    bucket: &Bucket,
+    ingredient: Ingredient,
+) -> Result<(), Error> {
     let mut ingredients = get_ingredients(session, bucket)?;
     if ingredients.iter().find(|&i| i == &ingredient).is_none() {
         set_flash(
@@ -29,7 +33,10 @@ pub(crate) fn add_ingredient(session: &Session, bucket: &Bucket, ingredient: Ing
     Ok(())
 }
 
-pub(crate) fn get_ingredients(session: &Session, bucket: &Bucket) -> Result<Vec<Ingredient>, Error> {
+pub(crate) fn get_ingredients(
+    session: &Session,
+    bucket: &Bucket,
+) -> Result<Vec<Ingredient>, Error> {
     Ok(session
         .get(&bucket.session_key())
         .unwrap_or_else(|_| {

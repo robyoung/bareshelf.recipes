@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "macros.html" as macros %}
 
 {% block content %}
 
@@ -54,6 +55,12 @@
     {% if recipes %}
     {% for recipe in recipes %}
     <div class="card">
+      {% if recipe.image_name %}
+      <div class="card-image">
+        <img src="{{ macros::full_image(name=recipe.image_name) }}">
+      </div>
+      {% endif %}
+
       <div class="card-content">
         <div class="recipe-source grey-text text-darken-2">{{recipe.source}}</div>
         <span class="card-title">

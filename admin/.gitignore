@@ -2,3 +2,4 @@
 __pycache__/
 /bareshelf_admin/bareshelf_indexer.so
 /search_index
+/crawls/

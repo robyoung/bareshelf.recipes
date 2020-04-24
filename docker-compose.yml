@@ -9,9 +9,11 @@ services:
       - ADMIN_SECRET_KEY=dYvSThPKxc1aAQok8WpjIqs/vtYioidKOx+VT5TZgIs
       - ADMIN_SQLALCHEMY_DATABASE_URL=postgresql://bareshelf:password@db/bareshelf
       - ADMIN_SEARCH_INDEX_PATH=/var/lib/bareshelf/search-index
+      - PYTHONBREAKPOINT=ipdb.set_trace
     volumes:
       - ./admin:/opt/app
       - ./search-index:/var/lib/bareshelf/search-index
+      - ./data:/var/lib/bareshelf/data
     ports:
       - "127.0.0.1:6001:6001"
 
@@ -21,3 +23,25 @@ services:
       - POSTGRES_PASSWORD=password
       - POSTGRES_USER=bareshelf
       - POSTGRES_DB=bareshelf
+
+  nginx:
+    image: nginx
+    depends_on:
+      - web
+    ports:
+      - "127.0.0.1:8090:80"
+    volumes:
+      - ./config/local-nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./data/images:/var/www/bareshelf.recipes/static/images
+
+  web:
+    image: debian:bullseye-slim
+    command: /usr/local/bin/bareshelf_web
+    environment:
+      - COOKIE_SECRET=4kbMlrRKIedVkaL3dCvlHkMGY0NY02cxPbnDonmzndQ=
+      - RUST_LOG=info
+      - SEARCH_INDEX_PATH=/var/lib/bareshelf/search-index
+      - APP_HOST=0.0.0.0:8089
+    volumes:
+      - ./target/release/bareshelf_web:/usr/local/bin/bareshelf_web
+      - ./search-index:/var/lib/bareshelf/search-index

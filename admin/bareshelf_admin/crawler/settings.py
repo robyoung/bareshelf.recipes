@@ -16,7 +16,7 @@ NEWSPIDER_MODULE = "bareshelf_admin.crawler.spiders"
 
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
-# USER_AGENT = 'crawler (+http://www.yourdomain.com)'
+USER_AGENT = "Bareshelf/1.0 (+https://bareshelf.recipes)"
 
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = True
@@ -65,19 +65,26 @@ ROBOTSTXT_OBEY = True
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
+    "scrapy.pipelines.images.ImagesPipeline": 100,
     "bareshelf_admin.crawler.pipelines.SQLAlchemyPipeline": 300,
 }
 
+IMAGES_STORE = "/var/lib/bareshelf/data/images"
+
+IMAGES_THUMBS = {
+    "small": (50, 50),
+    "medium": (270, 270),
+}
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
-# AUTOTHROTTLE_ENABLED = True
+AUTOTHROTTLE_ENABLED = True
 # The initial download delay
-# AUTOTHROTTLE_START_DELAY = 5
+AUTOTHROTTLE_START_DELAY = 5
 # The maximum download delay to be set in case of high latencies
-# AUTOTHROTTLE_MAX_DELAY = 60
+AUTOTHROTTLE_MAX_DELAY = 60
 # The average number of requests Scrapy should be sending in parallel to
 # each remote server
-# AUTOTHROTTLE_TARGET_CONCURRENCY = 1.0
+AUTOTHROTTLE_TARGET_CONCURRENCY = 2.0
 # Enable showing throttling stats for every response received:
 # AUTOTHROTTLE_DEBUG = False
 

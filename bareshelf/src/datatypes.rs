@@ -12,39 +12,33 @@ pub struct Recipe {
     pub slug: String,
     pub url: String,
     pub chef_name: Option<String>,
+    pub image_name: Option<String>,
     pub ingredients: Vec<Ingredient>,
 }
 
 impl Recipe {
-    pub fn new(
-        title: &str,
-        slug: &str,
-        url: &str,
-        chef_name: Option<&str>,
-        ingredients: Vec<Ingredient>,
-    ) -> Self {
+    pub fn new(title: &str, slug: &str, url: &str, ingredients: Vec<Ingredient>) -> Self {
         Self {
             title: String::from(title),
             slug: String::from(slug),
             url: String::from(url),
-            chef_name: chef_name.map(String::from),
+            chef_name: None,
+            image_name: None,
             ingredients,
         }
     }
 
     pub(crate) fn from_doc(schema: &Schema, doc: &Document) -> Option<Self> {
         Some(Self {
-            title: get_first_text(&doc, schema.get_field("title").unwrap())?,
-            slug: get_first_text(&doc, schema.get_field("slug").unwrap())?,
-            url: get_first_text(&doc, schema.get_field("url").unwrap())?,
-            chef_name: get_first_text(&doc, schema.get_field("chef_name").unwrap()),
+            title: get_first_text(&doc, get_field(schema, &"title"))?,
+            slug: get_first_text(&doc, get_field(schema, &"slug"))?,
+            url: get_first_text(&doc, get_field(schema, &"url"))?,
+            chef_name: get_first_text(&doc, get_field(schema, &"chef_name")),
+            image_name: get_first_text(&doc, get_field(schema, &"image_name")),
             ingredients: doc
-                .get_all(schema.get_field("ingredient_name").unwrap())
+                .get_all(get_field(schema, &"ingredient_name"))
                 .iter()
-                .zip(
-                    doc.get_all(schema.get_field("ingredient_slug").unwrap())
-                        .iter(),
-                )
+                .zip(doc.get_all(get_field(schema, &"ingredient_slug")).iter())
                 .map(|(name, slug)| Ingredient {
                     name: name.text().unwrap().to_string(),
                     slug: match slug {
@@ -57,8 +51,19 @@ impl Recipe {
     }
 }
 
+fn get_field(schema: &Schema, name: &str) -> Field {
+    schema
+        .get_field(name)
+        .unwrap_or_else(|| panic!(format!("Field {} not found in schema", name)))
+}
+
 fn get_first_text(doc: &Document, field: Field) -> Option<String> {
-    Some(doc.get_first(field)?.text().unwrap().to_string())
+    Some(
+        doc.get_first(field)?
+            .text()
+            .unwrap_or_else(|| panic!(format!("Field {:?} not found", field)))
+            .to_string(),
+    )
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

@@ -4,10 +4,10 @@ use actix_session::CookieSession;
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use tera::Tera;
 
-mod routes;
-mod views;
-mod shelf;
 mod flash;
+mod routes;
+mod shelf;
+mod views;
 
 pub async fn run_server() -> std::io::Result<()> {
     let cookie_key =
@@ -20,6 +20,7 @@ pub async fn run_server() -> std::io::Result<()> {
             ("index.html", include_str!("../templates/index.html")),
             ("ui2.html", include_str!("../templates/ui2.html")),
             ("base.html", include_str!("../templates/base.html")),
+            ("macros.html", include_str!("../templates/macros.html")),
         ])
         .unwrap();
         tera

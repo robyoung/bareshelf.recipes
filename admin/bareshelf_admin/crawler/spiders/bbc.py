@@ -49,13 +49,15 @@ class BBCRecipeSpider(scrapy.Spider, BBCPaginationMixin):  # type: ignore
                 for ingredient in recipe.css("li.recipe-ingredients__list-item")
             ]
             if all(ingredient["url"] is not None for ingredient in ingredients):
-                chef_name_parts = response.css('.chef__name *::text').getall()
+                chef_name_parts = recipe.css(".chef__name *::text").getall()
                 chef_name = chef_name_parts[-1] if len(chef_name_parts) > 0 else None
+                image_urls = recipe.css(".recipe-media__image img::attr(src)").getall()
                 yield {
                     "title": recipe.css("h1::text").get(),
                     "url": response.url,
                     "chef_name": chef_name,
                     "ingredients": ingredients,
+                    "image_urls": image_urls,
                 }
 
     def _get_ingredient(self, response: Response, ingredient: Any) -> Mapping:

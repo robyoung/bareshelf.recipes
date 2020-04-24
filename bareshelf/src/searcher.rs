@@ -3,8 +3,8 @@ use std::{cmp::Ordering, collections::HashSet};
 use tantivy::{
     collector::{Count, FacetCollector, TopDocs},
     fastfield::FacetReader,
-    query::{AllQuery, BooleanQuery, FuzzyTermQuery, TermQuery, Occur, Query, QueryParser},
-    schema::{Facet, Field, FieldType, Schema, Term, IndexRecordOption},
+    query::{AllQuery, BooleanQuery, FuzzyTermQuery, Occur, Query, QueryParser, TermQuery},
+    schema::{Facet, Field, FieldType, IndexRecordOption, Schema, Term},
     tokenizer::Token,
     DocAddress, DocId, Document, IndexReader, LeasedItem, Score, SegmentReader,
 };
@@ -71,7 +71,8 @@ impl Searcher {
         let search_igredients_set: HashSet<IngredientSlug> = ingredients.iter().cloned().collect();
         let ingredients_facets: Vec<Facet> = ingredients.iter().map(Into::into).collect();
         let key_ingredients_facets: Vec<Facet> = key_ingredients.iter().map(Into::into).collect();
-        let banned_ingredients_facets: Vec<Facet> = banned_ingredients.iter().map(Into::into).collect();
+        let banned_ingredients_facets: Vec<Facet> =
+            banned_ingredients.iter().map(Into::into).collect();
         let query = BooleanQuery::from(
             ingredients_facets
                 .iter()
@@ -82,24 +83,20 @@ impl Searcher {
                     ));
                     (Occur::Should, query)
                 })
-                .chain(
-                    key_ingredients_facets.iter().map(|facet|{
+                .chain(key_ingredients_facets.iter().map(|facet| {
                     let query: Box<dyn Query> = Box::new(TermQuery::new(
                         Term::from_facet(ingredient_slug_field, &facet),
                         IndexRecordOption::WithFreqs,
                     ));
                     (Occur::Must, query)
-                    })
-                )
-                .chain(
-                    banned_ingredients_facets.iter().map(|facet|{
+                }))
+                .chain(banned_ingredients_facets.iter().map(|facet| {
                     let query: Box<dyn Query> = Box::new(TermQuery::new(
                         Term::from_facet(ingredient_slug_field, &facet),
                         IndexRecordOption::WithFreqs,
                     ));
                     (Occur::MustNot, query)
-                    })
-                )
+                }))
                 .collect::<Vec<_>>(),
         );
         let top_docs_collector =

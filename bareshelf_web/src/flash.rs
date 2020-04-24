@@ -1,6 +1,5 @@
-use actix_web::{error, Error};
 use actix_session::Session;
-
+use actix_web::{error, Error};
 
 pub(crate) fn set_flash(session: &Session, message: &str) -> Result<(), Error> {
     session
@@ -17,4 +16,3 @@ pub(crate) fn pop_flash(session: &Session) -> Result<Option<String>, Error> {
     }
     Ok(flash)
 }
-
