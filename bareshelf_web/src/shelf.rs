@@ -1,59 +1,88 @@
-use actix_session::Session;
-use actix_web::{error, Error};
+use actix_session::UserSession;
+use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
+use futures::future::{ok, Ready};
+use rand::Rng;
 use serde::Deserialize;
 
 use bareshelf::Ingredient;
 
-use crate::flash::set_flash;
+use crate::error::Error;
 
-pub(crate) fn add_ingredient(
-    session: &Session,
-    bucket: &Bucket,
-    ingredient: Ingredient,
-) -> Result<(), Error> {
-    let mut ingredients = get_ingredients(session, bucket)?;
-    if ingredients.iter().find(|&i| i == &ingredient).is_none() {
-        set_flash(
-            session,
-            &format!("Added {} to your {}", ingredient.name, bucket.flash_name()),
-        )?;
-        ingredients.push(ingredient);
-        ingredients.sort_unstable();
-        set_ingredients(session, bucket, ingredients)?;
-    } else {
-        set_flash(
-            session,
-            &format!(
-                "{} is already in your {}",
-                ingredient.name,
-                bucket.flash_name()
-            ),
-        )?;
+pub(crate) struct Shelf {
+    sled: sled::Db, // TODO: replace this with a trait if testing becomes slow
+    uid: u32,
+}
+
+impl Shelf {
+    pub(crate) fn add_ingredient(&self, bucket: &Bucket, ingredient: &Ingredient) -> Result<bool, Error> {
+        let mut ingredients = self.get_ingredients(bucket)?;
+        if ingredients.iter().find(|&i| i == ingredient).is_none() {
+            ingredients.push(ingredient.clone());
+            ingredients.sort_unstable();
+            self.set_ingredients(bucket, ingredients)?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
-    Ok(())
+
+    pub(crate) fn remove_ingredient(&self, bucket: &Bucket, slug: &str) -> Result<Option<Ingredient>, Error> {
+        let ingredients = self.get_ingredients(bucket)?;
+        let ingredient = ingredients.iter().find(|i| i.slug == slug);
+        if let Some(ingredient) = ingredient {
+            let ingredient = ingredient.clone();
+            self.set_ingredients(
+                bucket,
+                ingredients.into_iter().filter(|i| i.slug != slug).collect(),
+            )?;
+            Ok(Some(ingredient))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub(crate) fn get_ingredients(&self, bucket: &Bucket) -> Result<Vec<Ingredient>, Error> {
+        let result = self.sled.get(self.key(&bucket.session_key()).as_bytes())?;
+
+        if let Some(result) = result {
+            Ok(serde_json::from_slice(&result)?)
+        } else {
+            Ok(vec![])
+        }
+    }
+
+    fn set_ingredients(&self, bucket: &Bucket, ingredients: Vec<Ingredient>) -> Result<(), Error> {
+        self.sled.insert(
+            self.key(&bucket.session_key()).as_bytes(),
+            serde_json::to_vec(&ingredients)?,
+        )?;
+        Ok(())
+    }
+
+    fn key(&self, path: &str) -> String {
+        format!("/{}/{}", self.uid, path)
+    }
 }
 
-pub(crate) fn get_ingredients(
-    session: &Session,
-    bucket: &Bucket,
-) -> Result<Vec<Ingredient>, Error> {
-    Ok(session
-        .get(&bucket.session_key())
-        .unwrap_or_else(|_| {
-            session.remove(&bucket.session_key());
-            None
+impl FromRequest for Shelf {
+    type Error = Error;
+    type Future = Ready<Result<Shelf, Error>>;
+    type Config = ();
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        let session = req.get_session();
+        let uid = session.get("uid").unwrap_or(None).unwrap_or_else(|| {
+            let mut rng = rand::thread_rng();
+            let uid = rng.gen::<u32>();
+            session.set("uid", uid).unwrap();
+            uid
+        });
+        let sled = req.app_data::<web::Data<sled::Db>>().unwrap();
+        ok(Shelf {
+            sled: sled.get_ref().clone(),
+            uid,
         })
-        .unwrap_or_default())
-}
-
-pub(crate) fn set_ingredients(
-    session: &Session,
-    bucket: &Bucket,
-    ingredients: Vec<Ingredient>,
-) -> Result<(), Error> {
-    session
-        .set(&bucket.session_key(), ingredients)
-        .map_err(|_| error::ErrorInternalServerError("failed to set ingredients"))
+    }
 }
 
 #[derive(Deserialize)]

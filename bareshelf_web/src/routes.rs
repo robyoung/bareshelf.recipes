@@ -8,6 +8,7 @@ use bareshelf::Error as BareshelfError;
 use crate::{
     flash::{pop_flash, set_flash},
     shelf,
+    shelf::Shelf,
     views::RecipeSearchResult,
 };
 
@@ -18,8 +19,9 @@ pub(crate) async fn index(
     tera: web::Data<tera::Tera>,
     searcher: web::Data<bareshelf::Searcher>,
     session: Session,
+    shelf: Shelf,
 ) -> Result<HttpResponse, Error> {
-    let ingredients = shelf::get_ingredients(&session, &shelf::Bucket::Ingredients)?;
+    let ingredients = shelf.get_ingredients(&shelf::Bucket::Ingredients)?;
     let mut ctx = tera::Context::new();
     ctx.insert("ingredients", &ingredients);
     ctx.insert("flash", &pop_flash(&session)?);
@@ -27,7 +29,7 @@ pub(crate) async fn index(
     if !ingredients.is_empty() {
         let ingredients: Vec<_> = ingredients.iter().map(|i| i.slug.clone()).collect();
         let recipes = searcher
-            .recipes_by_ingredients(&ingredients, &vec![], &vec![], 100)
+            .recipes_by_ingredients(&ingredients, &[], &[], 100) // TODO: move this to a config
             .map_err(|_| error::ErrorInternalServerError("failed to search"))?;
         ctx.insert(
             "recipes",
@@ -45,14 +47,15 @@ pub(crate) async fn ui2(
     tera: web::Data<tera::Tera>,
     searcher: web::Data<bareshelf::Searcher>,
     session: Session,
+    shelf: Shelf,
 ) -> Result<HttpResponse, Error> {
     let mut ctx = tera::Context::new();
 
-    let ingredients = shelf::get_ingredients(&session, &shelf::Bucket::Ingredients)?;
+    let ingredients = shelf.get_ingredients(&shelf::Bucket::Ingredients)?;
     ctx.insert("ingredients", &ingredients);
-    let key_ingredients = shelf::get_ingredients(&session, &shelf::Bucket::KeyIngredients)?;
+    let key_ingredients = shelf.get_ingredients(&shelf::Bucket::KeyIngredients)?;
     ctx.insert("key_ingredients", &key_ingredients);
-    let banned_ingredients = shelf::get_ingredients(&session, &shelf::Bucket::BannedIngredients)?;
+    let banned_ingredients = shelf.get_ingredients(&shelf::Bucket::BannedIngredients)?;
     ctx.insert("banned_ingredients", &banned_ingredients);
 
     ctx.insert("flash", &pop_flash(&session)?);
@@ -88,6 +91,7 @@ pub(crate) async fn add_ingredient(
     form: web::Form<IngredientForm>,
     searcher: web::Data<bareshelf::Searcher>,
     session: Session,
+    shelf: Shelf,
 ) -> Result<HttpResponse, Error> {
     let ingredient = searcher
         .ingredient_by_name(&form.ingredient)
@@ -103,7 +107,25 @@ pub(crate) async fn add_ingredient(
         .map_err(|_: BareshelfError| error::ErrorInternalServerError("search error"))?;
 
     if let Some(ingredient) = ingredient {
-        shelf::add_ingredient(&session, &form.bucket, ingredient)?;
+        if shelf.add_ingredient(&form.bucket, &ingredient)? {
+            set_flash(
+                &session,
+                &format!(
+                    "Added {} to your {}",
+                    ingredient.name,
+                    form.bucket.flash_name()
+                ),
+            )?;
+        } else {
+            set_flash(
+                &session,
+                &format!(
+                    "{} is already in your {}",
+                    ingredient.name,
+                    form.bucket.flash_name()
+                ),
+            )?;
+        }
     } else {
         set_flash(
             &session,
@@ -117,22 +139,12 @@ pub(crate) async fn add_ingredient(
 pub(crate) async fn remove_ingredient(
     form: web::Form<IngredientForm>,
     session: Session,
+    shelf: Shelf,
 ) -> Result<HttpResponse, Error> {
-    let ingredients = shelf::get_ingredients(&session, &form.bucket)?;
-    let ingredient = ingredients.iter().find(|i| *i.slug == form.ingredient);
-    if let Some(ingredient) = ingredient {
+    if let Some(ingredient) = shelf.remove_ingredient(&form.bucket, &form.ingredient)? {
         set_flash(
             &session,
             &format!("Removed {} from your shelf", ingredient.name),
-        )?;
-
-        shelf::set_ingredients(
-            &session,
-            &form.bucket,
-            ingredients
-                .into_iter()
-                .filter(|i| *i.slug != form.ingredient)
-                .collect(),
         )?;
     }
 

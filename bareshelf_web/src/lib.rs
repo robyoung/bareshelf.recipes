@@ -4,6 +4,7 @@ use actix_session::CookieSession;
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use tera::Tera;
 
+mod error;
 mod flash;
 mod routes;
 mod shelf;
@@ -31,11 +32,14 @@ pub async fn run_server() -> std::io::Result<()> {
         &std::env::var("SEARCH_INDEX_PATH").unwrap_or_else(|_| "./search-index".to_string()),
     ))
     .expect("Could not open search index");
+    let sled =
+        sled::open(&std::env::var("SLED_PATH").unwrap_or_else(|_| "./sled".to_string())).unwrap();
 
     HttpServer::new(move || {
         let tera = tera.clone();
         let cookie_key = cookie_key.clone();
         let searcher = searcher.clone();
+        let sled = sled.clone();
 
         App::new()
             .wrap(Logger::default())
@@ -48,6 +52,7 @@ pub async fn run_server() -> std::io::Result<()> {
             )
             .data(tera)
             .data(searcher)
+            .data(sled)
             .service(web::resource("/status").route(web::get().to(routes::status)))
             .service(
                 web::scope("/")
