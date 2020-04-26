@@ -158,7 +158,6 @@ impl Searcher {
             tokens
                 .iter()
                 .map(|token| {
-                    println!("token: {}", token.text);
                     let query: Box<dyn Query> = Box::new(FuzzyTermQuery::new_prefix(
                         Term::from_field_text(name_field, &token.text),
                         0,

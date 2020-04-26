@@ -95,16 +95,21 @@ pub(crate) async fn add_ingredient(
 ) -> Result<HttpResponse, Error> {
     let ingredient = searcher
         .ingredient_by_name(&form.ingredient)
-        .or_else(|_| {
-            let (mut ingredients, _) = searcher.ingredients_by_prefix(&form.ingredient)?;
+        .map_err(|_| error::ErrorInternalServerError("search error"))?;
 
-            if ingredients.is_empty() {
-                Ok(None)
-            } else {
-                Ok(Some(ingredients.remove(0)))
-            }
-        })
-        .map_err(|_: BareshelfError| error::ErrorInternalServerError("search error"))?;
+    let ingredient = if ingredient.is_some() {
+        ingredient
+    } else {
+        let (mut ingredients, _) = searcher
+            .ingredients_by_prefix(&form.ingredient)
+            .map_err(|_: BareshelfError| error::ErrorInternalServerError("search error"))?;
+
+        if ingredients.is_empty() {
+            None
+        } else {
+            Some(ingredients.remove(0))
+        }
+    };
 
     if let Some(ingredient) = ingredient {
         if shelf.add_ingredient(&form.bucket, &ingredient)? {

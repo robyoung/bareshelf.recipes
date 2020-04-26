@@ -166,7 +166,6 @@ mod tests {
 
         let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
         let ingredients = searcher.ingredients_by_prefix("butt").unwrap();
-        println!("{:?}", ingredients);
 
         assert_eq!(ingredients.0[0].name, "Butter");
     }
