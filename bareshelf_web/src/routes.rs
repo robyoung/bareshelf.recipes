@@ -1,12 +1,11 @@
-use actix_session::Session;
-use actix_web::{error, http, web, Error, HttpResponse, Responder};
+use actix_web::{error, web, Error, HttpResponse, Responder};
 use serde::Deserialize;
 use serde_json::json;
 
 use bareshelf::Error as BareshelfError;
 
 use crate::{
-    flash::{pop_flash, set_flash},
+    flash::{FlashMessage, FlashResponse},
     shelf,
     shelf::Shelf,
     views::RecipeSearchResult,
@@ -15,16 +14,17 @@ use crate::{
 pub(crate) async fn status() -> impl Responder {
     HttpResponse::Ok().json(json!({"status": "ok"}))
 }
+
 pub(crate) async fn index(
     tera: web::Data<tera::Tera>,
     searcher: web::Data<bareshelf::Searcher>,
-    session: Session,
     shelf: Shelf,
+    flash: FlashMessage,
 ) -> Result<HttpResponse, Error> {
     let ingredients = shelf.get_ingredients(&shelf::Bucket::Ingredients)?;
     let mut ctx = tera::Context::new();
     ctx.insert("ingredients", &ingredients);
-    ctx.insert("flash", &pop_flash(&session)?);
+    ctx.insert("flash", &flash.take());
 
     if !ingredients.is_empty() {
         let ingredients: Vec<_> = ingredients.iter().map(|i| i.slug.clone()).collect();
@@ -46,8 +46,8 @@ pub(crate) async fn index(
 pub(crate) async fn ui2(
     tera: web::Data<tera::Tera>,
     searcher: web::Data<bareshelf::Searcher>,
-    session: Session,
     shelf: Shelf,
+    flash: FlashMessage,
 ) -> Result<HttpResponse, Error> {
     let mut ctx = tera::Context::new();
 
@@ -58,7 +58,7 @@ pub(crate) async fn ui2(
     let banned_ingredients = shelf.get_ingredients(&shelf::Bucket::BannedIngredients)?;
     ctx.insert("banned_ingredients", &banned_ingredients);
 
-    ctx.insert("flash", &pop_flash(&session)?);
+    ctx.insert("flash", &flash.take());
 
     if !ingredients.is_empty() {
         let ingredients: Vec<_> = ingredients.iter().map(|i| i.slug.clone()).collect();
@@ -90,9 +90,8 @@ pub struct IngredientForm {
 pub(crate) async fn add_ingredient(
     form: web::Form<IngredientForm>,
     searcher: web::Data<bareshelf::Searcher>,
-    session: Session,
     shelf: Shelf,
-) -> Result<HttpResponse, Error> {
+) -> Result<FlashResponse, Error> {
     let ingredient = searcher
         .ingredient_by_name(&form.ingredient)
         .map_err(|_| error::ErrorInternalServerError("search error"))?;
@@ -111,49 +110,43 @@ pub(crate) async fn add_ingredient(
         }
     };
 
-    if let Some(ingredient) = ingredient {
+    let flash = if let Some(ingredient) = ingredient {
         if shelf.add_ingredient(&form.bucket, &ingredient)? {
-            set_flash(
-                &session,
-                &format!(
-                    "Added {} to your {}",
-                    ingredient.name,
-                    form.bucket.flash_name()
-                ),
-            )?;
+            format!(
+                "Added {} to your {}",
+                ingredient.name,
+                form.bucket.flash_name()
+            )
         } else {
-            set_flash(
-                &session,
-                &format!(
-                    "{} is already in your {}",
-                    ingredient.name,
-                    form.bucket.flash_name()
-                ),
-            )?;
+            format!(
+                "{} is already in your {}",
+                ingredient.name,
+                form.bucket.flash_name()
+            )
         }
     } else {
-        set_flash(
-            &session,
-            &format!("No ingredients found matching \"{}\"", form.ingredient),
-        )?;
-    }
+        format!("No ingredients found matching \"{}\"", form.ingredient)
+    };
 
-    Ok(found(form.redirect.as_ref().unwrap_or(&"/".to_string())))
+    Ok(FlashResponse::new(
+        Some(flash),
+        form.redirect.as_ref().unwrap_or(&"/".to_string()),
+    ))
 }
 
 pub(crate) async fn remove_ingredient(
     form: web::Form<IngredientForm>,
-    session: Session,
     shelf: Shelf,
-) -> Result<HttpResponse, Error> {
-    if let Some(ingredient) = shelf.remove_ingredient(&form.bucket, &form.ingredient)? {
-        set_flash(
-            &session,
-            &format!("Removed {} from your shelf", ingredient.name),
-        )?;
-    }
-
-    Ok(found(form.redirect.as_ref().unwrap_or(&"/".to_string())))
+) -> Result<FlashResponse, Error> {
+    let flash = if let Some(ingredient) = shelf.remove_ingredient(&form.bucket, &form.ingredient)? {
+        Some(format!("Removed {} from your shelf", ingredient.name))
+    } else {
+        None
+    };
+    Ok(FlashResponse::new(
+        flash,
+        form.redirect.as_ref().unwrap_or(&"/".to_string()),
+    ))
 }
 
 #[derive(Deserialize)]
@@ -180,11 +173,4 @@ fn render(
         .render(template_name, context.unwrap_or(&tera::Context::new()))
         .map_err(|e| error::ErrorInternalServerError(format!("template errror: {:?}", e)))?;
     Ok(HttpResponse::Ok().content_type("text/html").body(body))
-}
-
-pub(crate) fn found<B>(location: &str) -> HttpResponse<B> {
-    HttpResponse::Found()
-        .header(http::header::LOCATION, location)
-        .finish()
-        .into_body()
 }
