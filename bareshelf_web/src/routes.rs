@@ -1,8 +1,8 @@
+use std::collections::HashSet;
+
 use actix_web::{error, web, Error, HttpResponse, Responder};
 use serde::Deserialize;
 use serde_json::json;
-
-use bareshelf::Error as BareshelfError;
 
 use crate::{
     flash::{FlashMessage, FlashResponse},
@@ -99,9 +99,7 @@ pub(crate) async fn add_ingredient(
     let ingredient = if ingredient.is_some() {
         ingredient
     } else {
-        let (mut ingredients, _) = searcher
-            .ingredients_by_prefix(&form.ingredient)
-            .map_err(|_: BareshelfError| error::ErrorInternalServerError("search error"))?;
+        let mut ingredients = get_ingredients_by_prefix(&shelf, searcher.as_ref(), &form.bucket, &form.ingredient)?;
 
         if ingredients.is_empty() {
             None
@@ -152,16 +150,20 @@ pub(crate) async fn remove_ingredient(
 #[derive(Deserialize)]
 pub struct Search {
     term: String,
+    bucket: shelf::Bucket,
 }
 
 pub(crate) async fn ingredients(
     search: web::Query<Search>,
     searcher: web::Data<bareshelf::Searcher>,
+    shelf: Shelf,
 ) -> Result<HttpResponse, Error> {
-    let (ingredients, _) = searcher
-        .ingredients_by_prefix(&search.term)
-        .map_err(|_| error::ErrorInternalServerError("failed to search ingredients"))?;
-    Ok(HttpResponse::Ok().json(ingredients))
+    Ok(HttpResponse::Ok().json(get_ingredients_by_prefix(
+        &shelf,
+        searcher.as_ref(),
+        &search.bucket,
+        &search.term,
+    )?))
 }
 
 fn render(
@@ -173,4 +175,27 @@ fn render(
         .render(template_name, context.unwrap_or(&tera::Context::new()))
         .map_err(|e| error::ErrorInternalServerError(format!("template errror: {:?}", e)))?;
     Ok(HttpResponse::Ok().content_type("text/html").body(body))
+}
+
+// TODO: figure out a better way of handling this.
+// Two options I can think of:
+// 1. Replace or fix the autocomplete library so that we always get a slug rather than sometimes a
+//    prefix
+// 2. Create a web specific searcher type that handles how searching is done in the web UI
+fn get_ingredients_by_prefix(
+    shelf: &Shelf,
+    searcher: &bareshelf::Searcher,
+    bucket: &shelf::Bucket,
+    prefix: &str,
+) -> Result<Vec<bareshelf::Ingredient>, Error> {
+    let existing_ingredients: HashSet<_> = shelf.get_ingredients(&bucket)?.into_iter().collect();
+    let (ingredients, _) = searcher
+        .ingredients_by_prefix(&prefix)
+        .map_err(|_| error::ErrorInternalServerError("failed to search ingredients"))?;
+    let ingredients: Vec<_> = ingredients
+        .into_iter()
+        .filter(|ingredient| !existing_ingredients.contains(ingredient))
+        .collect();
+
+    Ok(ingredients)
 }

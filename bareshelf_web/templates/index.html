@@ -115,12 +115,12 @@
         }
       });
       $(this).keyup(function () {
-        console.log("input changed");
+        if ($(self).val().length > 2) {
           $.ajax({
               url: '/ingredients',
               type: 'get',
               cache: false,
-              data: {"term": $(self).val()},
+              data: {"term": $(self).val(), "bucket": $(self).closest("form").find("input[name='bucket']").val()},
               success: function (data) {
                   let updateData = {};
                   data.forEach(function(val) {
@@ -133,6 +133,7 @@
                   console.log(err);
               }
           });
+        }
       });
     });
   });

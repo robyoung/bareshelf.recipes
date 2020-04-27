@@ -66,7 +66,7 @@ fn get_first_text(doc: &Document, field: Field) -> Option<String> {
     )
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Hash, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Ingredient {
     pub name: String,
     pub slug: String,
