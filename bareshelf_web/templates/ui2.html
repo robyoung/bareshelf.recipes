@@ -137,7 +137,23 @@
           <ol>
             {% for ingredient in recipe.ingredients %}
             {% if ingredient.is_missing %}
-            <li>{{ ingredient.name }}</li>
+            <li>
+              {{ ingredient.name }} [
+              <form class=inline-ingredient action="/add-ingredient" method=post>
+                <input type=hidden name=bucket value=ingredients>
+                <input type=hidden name=redirect value=/ui2>
+                <input type=hidden name=ingredient value="{{ingredient.name}}">
+                <button type=submit>add</button>
+              </form>
+              |
+              <form class=inline-ingredient action="/add-ingredient" method=post>
+                <input type=hidden name=bucket value=banned_ingredients>
+                <input type=hidden name=redirect value=/ui2>
+                <input type=hidden name=ingredient value="{{ingredient.name}}">
+                <button type=submit>ban</button>
+              </form>
+              ]
+            </li>
             {% endif %}{% endfor %}
           </ol>
         </div>
