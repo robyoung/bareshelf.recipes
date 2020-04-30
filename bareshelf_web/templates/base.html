@@ -60,41 +60,31 @@ form.inline-ingredient button {
 }
 @media only screen and (max-width: 600px) {
   nav .brand-logo {
-    position: relative;
-    display: block;
-    text-align: center;
+    white-space: nowrap;
+  }
+  nav .sidenav-trigger {
+    margin: 0 18px 0 0;
   }
 }
 </style>
 </head>
 <body class="green lighten-2">
-  <header class=no-padding>
-    <div class=navbar-fixed>
-      <nav class=green>
-        <div class="container nav-wrapper">
-          <div class="col s12">
-            <a href=# class=brand-logo>Bare shelf recipes</a>
-          </div>
-        </div>
-      </nav>
-    </div>
+  <header>
+    <nav class=green>
+      <div class="nav-wrapper container">
+        <a href=/ class=brand-logo>Bare shelf recipes</a>
+        <a href="#" data-target="nav-mobile" class="sidenav-trigger"><i class="material-icons">menu</i></a>
+        <ul id="nav-large" class="right hide-on-med-and-down">
+          {% include "nav-links.html" %}
+        </ul>
+      </div>
+    </nav>
+
+    <ul id="nav-mobile" class="sidenav">
+      {% include "nav-links.html" %}
+    </ul>
   </header>
   <div id="content" class="container">
-
-      <div class="row notice-banner">
-        <div class="col s12">
-          <div class=card>
-            <div class="card-content yellow">
-              <p>
-                This site is a work in progress.
-                There is a lot that is broken and incomplete.
-                If you have any comments please <a href="https://forms.gle/XGUidZp3G5vjVv8KA">submit your feedback</a>.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {% block content %}{% endblock content %}
   </div>
 
@@ -105,6 +95,11 @@ form.inline-ingredient button {
   </footer>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+  <script type=text/javascript>
+    $(document).ready(function(){
+      $('.sidenav').sidenav();
+    });
+  </script>
   {% block javascript %}{% endblock javascript %}
 </body>
 </html>

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class=row>
+  <div class="col s12">
+    <div class=card>
+      <div class=card-content>
+        {% if token %}
+          <span class=card-title>Share with the following URL</span>
+          <a href="{{ share_url }}"><samp>{{ share_url }}</samp></a>
+        {% elif imported %}
+          <span class=card-title>Remote shelf has been imported.</span>
+        {% else %}
+          <span class=card-title>You can't import your own shelf. That doesn't make sense!</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock content %}

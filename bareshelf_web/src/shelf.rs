@@ -51,6 +51,17 @@ impl Shelf {
         }
     }
 
+    pub(crate) fn remove_all(&self) -> Result<(), Error> {
+        for bucket in [Bucket::KeyIngredients, Bucket::BannedIngredients, Bucket::Ingredients].iter() {
+            self.sled.remove(self.key(&bucket.session_key()))?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn uid(&self) -> u32 {
+        self.uid
+    }
+
     fn set_ingredients(&self, bucket: &Bucket, ingredients: Vec<Ingredient>) -> Result<(), Error> {
         self.sled.insert(
             self.key(&bucket.session_key()).as_bytes(),

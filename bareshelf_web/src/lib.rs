@@ -7,27 +7,30 @@ use tera::Tera;
 mod error;
 mod flash;
 mod routes;
+mod sharing;
 mod shelf;
 mod views;
+
+pub(crate) struct AppData {
+    cookie_key: Vec<u8>,
+}
 
 pub async fn run_server() -> std::io::Result<()> {
     let cookie_key =
         base64::decode(&std::env::var("COOKIE_SECRET").expect("COOKIE_SECRET is required"))
             .expect("COOKIE_SECRET is not valid base64");
     let app_host = std::env::var("APP_HOST").expect("APP_HOST must be set");
-    let tera = if cfg!(feature = "embedded_templates") {
-        let mut tera = Tera::new("/dev/null/*").unwrap();
-        tera.add_raw_templates(vec![
-            ("index.html", include_str!("../templates/index.html")),
-            ("ui2.html", include_str!("../templates/ui2.html")),
-            ("base.html", include_str!("../templates/base.html")),
-            ("macros.html", include_str!("../templates/macros.html")),
-        ])
-        .unwrap();
-        tera
-    } else {
-        Tera::new(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/**/*")).unwrap()
-    };
+    let mut tera = Tera::new("/dev/null/*").unwrap();
+    tera.add_raw_templates(vec![
+        ("index.html", include_str!("../templates/index.html")),
+        ("ui2.html", include_str!("../templates/ui2.html")),
+        ("base.html", include_str!("../templates/base.html")),
+        ("macros.html", include_str!("../templates/macros.html")),
+        ("nav-links.html", include_str!("../templates/nav-links.html")),
+        ("share-shelf.html", include_str!("../templates/share-shelf.html")),
+    ])
+    .unwrap();
+    // let tera = Tera::new(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/**/*")).unwrap();
     let searcher = bareshelf::searcher(Path::new(
         &std::env::var("SEARCH_INDEX_PATH").unwrap_or_else(|_| "./search-index".to_string()),
     ))
@@ -50,6 +53,7 @@ pub async fn run_server() -> std::io::Result<()> {
                     .secure(false)
                     .max_age(60 * 60 * 24 * 30),
             )
+            .data(AppData { cookie_key })
             .data(tera)
             .data(searcher)
             .data(sled)
@@ -63,7 +67,8 @@ pub async fn run_server() -> std::io::Result<()> {
                         "/remove-ingredient",
                         web::post().to(routes::remove_ingredient),
                     )
-                    .route("/ingredients", web::get().to(routes::ingredients)),
+                    .route("/ingredients", web::get().to(routes::ingredients))
+                    .route("/share-shelf", web::get().to(routes::share_shelf)),
             )
     })
     .bind(app_host)?

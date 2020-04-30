@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
-use actix_web::{error, web, Error, HttpResponse, Responder};
+use actix_session::Session;
+use actix_web::{error, web, Error, HttpRequest, HttpResponse, Responder};
 use serde::Deserialize;
 use serde_json::json;
 
@@ -9,6 +10,7 @@ use crate::{
     shelf,
     shelf::Shelf,
     views::RecipeSearchResult,
+    sharing::{encode_share_token, decode_share_token},
 };
 
 pub(crate) async fn status() -> impl Responder {
@@ -99,7 +101,8 @@ pub(crate) async fn add_ingredient(
     let ingredient = if ingredient.is_some() {
         ingredient
     } else {
-        let mut ingredients = get_ingredients_by_prefix(&shelf, searcher.as_ref(), &form.bucket, &form.ingredient)?;
+        let mut ingredients =
+            get_ingredients_by_prefix(&shelf, searcher.as_ref(), &form.bucket, &form.ingredient)?;
 
         if ingredients.is_empty() {
             None
@@ -164,6 +167,43 @@ pub(crate) async fn ingredients(
         &search.bucket,
         &search.term,
     )?))
+}
+
+#[derive(Deserialize)]
+pub(crate) struct Share {
+    token: Option<String>,
+}
+
+pub(crate) async fn share_shelf(
+    tera: web::Data<tera::Tera>,
+    shelf: Shelf,
+    session: Session,
+    share: web::Query<Share>,
+    app_data: web::Data<crate::AppData>,
+    req: HttpRequest,
+) -> Result<HttpResponse, Error> {
+    let mut ctx = tera::Context::new();
+    if let Some(ref token) = share.token {
+        let uid = decode_share_token(&app_data.cookie_key, token)?;
+
+        if shelf.uid() != uid {
+            session
+                .set("uid", uid)
+                .map_err(|_| error::ErrorInternalServerError("failed to update shelf"))?;
+            shelf
+                .remove_all()
+                .map_err(|_| error::ErrorInternalServerError("failed to clean up old shelf"))?;
+            ctx.insert("imported", &true);
+        } else {
+            ctx.insert("imported", &false);
+        }
+    } else {
+        let connection_info = req.connection_info();
+        let token = encode_share_token(&app_data.cookie_key, shelf.uid())?;
+        ctx.insert("token", &token);
+        ctx.insert("share_url", &format!("{}://{}{}?token={}", connection_info.scheme(), connection_info.host(), req.uri().path(), token));
+    }
+    render(tera, "share-shelf.html", Some(&ctx))
 }
 
 fn render(

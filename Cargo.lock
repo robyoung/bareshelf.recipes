@@ -442,6 +442,7 @@ dependencies = [
  "futures",
  "log",
  "rand 0.7.3",
+ "ring",
  "serde",
  "serde_json",
  "sled",

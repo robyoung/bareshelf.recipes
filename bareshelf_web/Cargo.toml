@@ -28,6 +28,8 @@ url = "2.1"
 
 bareshelf = { path = "../bareshelf" }
 
+ring = { version = "0.16", features = [ "std" ] }
+
 [features]
 default = ["embedded_templates"]
 embedded_templates = []
