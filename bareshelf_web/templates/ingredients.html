@@ -15,9 +15,16 @@
 {% endif %}
 
 <div class="row">
-  <div id=ingredients class="col s12 m4 l4 xl3">
+  <div class="col s12 m4 l4 xl3">
     <h3>Ingredients</h3>
-    <a class=quicklink href="#recipes">go to recipes</a>
+  </div>
+</div>
+<div class=row>
+  <div class="col s12 m4 l4 xl3">
+    <ul id=ingredients>
+      <li><a class=quicklink href="#key_ingredients">go to key ingredients</a></li>
+      <li><a class=quicklink href="#banned_ingredients">go to banned ingredients</a></li>
+    </ul>
 
     {{
       macros::ingredients_bucket(
@@ -25,40 +32,42 @@
         title="Ingredient",
         info="Add ingredients that you already have here",
         bucket="ingredients",
-        redirect="/ui2"
+        redirect="/ingredients"
       )
     }}
+  </div>
 
+  <div class="col s12 m4 l4 xl3">
+    <ul id=key_ingredients>
+      <li><a class=quicklink href="#ingredients">go to ingredients</a></li>
+      <li><a class=quicklink href="#banned_ingredients">go to banned ingredients</a></li>
+    </ul>
     {{
       macros::ingredients_bucket(
         ingredients=key_ingredients,
         title="Key ingredient",
         info="Add ingredients that definitely should appear",
         bucket="key_ingredients",
-        redirect="/ui2"
+        redirect="/ingredients"
       )
     }}
+  </div>
 
+  <div class="col s12 m4 l4 xl3">
+    <ul id=banned_ingredients>
+      <li><a class=quicklink href="#ingredients">go to ingredients</a></li>
+      <li><a class=quicklink href="#key_ingredients">go to key ingredients</a></li>
+    </ul>
     {{
       macros::ingredients_bucket(
         ingredients=banned_ingredients,
         title="Banned ingredient",
         info="Add ingredients that definitely should not appear",
         bucket="banned_ingredients",
-        redirect="/ui2"
+        redirect="/ingredients"
       )
     }}
 
-  </div>
-
-  <div id=recipes class="col s12 m8 l8 xl9">
-    <h3>Recipes</h3>
-    <a class=quicklink href="#ingredients">go to ingredients</a>
-    {% if recipes %}
-    {% for recipe in recipes %}
-      {{ macros::recipe(recipe=recipe, redirect="/ui2") }}
-    {% endfor %}
-    {% endif %}
   </div>
 </div>
 {% endblock content %}
@@ -80,10 +89,7 @@
               url: '/api/ingredients',
               type: 'get',
               cache: false,
-              data: {
-                "term": $(self).val(),
-                "bucket": $(self).closest("form").find("input[name='bucket']").val(),
-              },
+              data: {"term": $(self).val(), "bucket": $(self).closest("form").find("input[name='bucket']").val()},
               success: function (data) {
                   let updateData = {};
                   data.forEach(function(val) {

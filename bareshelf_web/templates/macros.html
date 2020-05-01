@@ -1,3 +1,105 @@
 {% macro full_image(name) %}/static/images/full/{{ name }}{% endmacro full_image %}
 {% macro medium_image(name) %}/static/images/thumbs/medium/{{ name }}{% endmacro medium_image %}
 {% macro small_image(name) %}/static/images/thumbs/small/{{ name }}{% endmacro small_image %}
+
+{% macro recipe(recipe, redirect) %}
+  <div class="card">
+    <!-- Recipe image //-->
+    {% if recipe.image_name %}
+    <div class="card-image">
+      <img src="{{ self::full_image(name=recipe.image_name) }}">
+    </div>
+    {% endif %}
+
+    <div class=card-content>
+      <!-- Recipe source //-->
+      <div class="recipe-source grey-text text-darken-2">{{recipe.source}}</div>
+
+      <!-- Recipe title //-->
+      <span class="card-title">
+        <a href="{{recipe.url}}">{{ recipe.title }}</a>
+        {% if recipe.chef_name %}
+          <span class="recipe-chef-name">by {{ recipe.chef_name }}</span>
+        {% endif %}
+      </span>
+
+      <!-- Missing ingredients //-->
+      {% if recipe.num_missing > 0 %}
+      <div class=recipe-ingredients>
+        <p style="float:left">You would need:</p>
+        <ol>
+          {% for ingredient in recipe.ingredients %}
+          {% if ingredient.is_missing %}
+          <li>
+            {{ ingredient.name }} [
+            <form class=inline-ingredient action="/add-ingredient" method=post>
+              <input type=hidden name=bucket value=ingredients>
+              <input type=hidden name=redirect value={{ redirect }}>
+              <input type=hidden name=ingredient value="{{ingredient.name}}">
+              <button type=submit>add</button>
+            </form>
+            |
+            <form class=inline-ingredient action="/add-ingredient" method=post>
+              <input type=hidden name=bucket value=banned_ingredients>
+              <input type=hidden name=redirect value={{ redirect }}>
+              <input type=hidden name=ingredient value="{{ingredient.name}}">
+              <button type=submit>ban</button>
+            </form>
+            ]
+          </li>
+          {% endif %}{% endfor %}
+        </ol>
+      </div>
+      {% else %}
+      <p>You have everything you need for this recipe!</p>
+      {% endif %}
+
+      <!-- All ingredients //-->
+      <div class=recipe-ingredients>
+        <p style="float:left">{% if recipe.num_missing > 0 %}All ingredients{% else %}Ingredients {% endif %}:</p>
+        <ol>
+          {% for ingredient in recipe.ingredients %}
+            <li class="{% if ingredient.is_missing %}missing-ingredient{% endif %}">
+              <p>{{ ingredient.name }}</p>
+            </li>
+          {% endfor %}
+        </ol>
+      </div>
+    </div>
+  </div>
+{% endmacro recipe %}
+
+{% macro ingredients_bucket(ingredients, title, info, bucket, redirect) %}
+  <div class="card">
+    <div class=card-content>
+      <form action=/add-ingredient method=post>
+        <input type=hidden name=bucket value={{ bucket }}>
+        <input type=hidden name=redirect value={{ redirect }}>
+        <div class=input-field>
+          <input class=autocomplete type=text name=ingredient id=add-{{ bucket }} autocomplete=off>
+          <label for=add-{{ bucket }}>{{ title }}</label>
+          <p>{{ info }}</p>
+
+          <button class="btn waves-effect waves-light" type=submit name=action>add</button>
+        </div>
+      </form>
+
+      <form action="/remove-ingredient" method=post>
+        <input type=hidden name=bucket value={{ bucket }}>
+        <input type=hidden name=redirect value={{ redirect }}>
+        <ul class="collection search-ingredients">
+          {% for ingredient in ingredients %}
+          <li class="collection-item">
+            {{ ingredient.name }}
+            <button class="btn-floating btn-small waves-effect right" type=submit name=ingredient value={{ingredient.slug}}>
+              <i class="material-icons">remove</i>
+            </button>
+          </li>
+          {% endfor %}
+        </ul>
+      </form>
+
+    </div>
+  </div>
+
+{% endmacro ingredients_bucket %}

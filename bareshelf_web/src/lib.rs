@@ -15,21 +15,35 @@ pub(crate) struct AppData {
     cookie_key: Vec<u8>,
 }
 
+fn tera_templates() -> Vec<(&'static str, &'static str)> {
+    vec![
+        ("index.html", include_str!("../templates/index.html")),
+        ("ui2.html", include_str!("../templates/ui2.html")),
+        ("ui3.html", include_str!("../templates/ui3.html")),
+        (
+            "ingredients.html",
+            include_str!("../templates/ingredients.html"),
+        ),
+        ("base.html", include_str!("../templates/base.html")),
+        ("macros.html", include_str!("../templates/macros.html")),
+        (
+            "includes/nav-links.html",
+            include_str!("../templates/includes/nav-links.html"),
+        ),
+        (
+            "share-shelf.html",
+            include_str!("../templates/share-shelf.html"),
+        ),
+    ]
+}
+
 pub async fn run_server() -> std::io::Result<()> {
     let cookie_key =
         base64::decode(&std::env::var("COOKIE_SECRET").expect("COOKIE_SECRET is required"))
             .expect("COOKIE_SECRET is not valid base64");
     let app_host = std::env::var("APP_HOST").expect("APP_HOST must be set");
     let mut tera = Tera::new("/dev/null/*").unwrap();
-    tera.add_raw_templates(vec![
-        ("index.html", include_str!("../templates/index.html")),
-        ("ui2.html", include_str!("../templates/ui2.html")),
-        ("base.html", include_str!("../templates/base.html")),
-        ("macros.html", include_str!("../templates/macros.html")),
-        ("nav-links.html", include_str!("../templates/nav-links.html")),
-        ("share-shelf.html", include_str!("../templates/share-shelf.html")),
-    ])
-    .unwrap();
+    tera.add_raw_templates(tera_templates()).unwrap();
     // let tera = Tera::new(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/**/*")).unwrap();
     let searcher = bareshelf::searcher(Path::new(
         &std::env::var("SEARCH_INDEX_PATH").unwrap_or_else(|_| "./search-index".to_string()),
@@ -62,13 +76,12 @@ pub async fn run_server() -> std::io::Result<()> {
                 web::scope("/")
                     .route("", web::get().to(routes::index))
                     .route("/ui2", web::get().to(routes::ui2))
-                    .route("/add-ingredient", web::post().to(routes::add_ingredient))
-                    .route(
-                        "/remove-ingredient",
-                        web::post().to(routes::remove_ingredient),
-                    )
+                    .route("/ui3", web::get().to(routes::ui3))
                     .route("/ingredients", web::get().to(routes::ingredients))
-                    .route("/share-shelf", web::get().to(routes::share_shelf)),
+                    .route("/add-ingredient", web::post().to(routes::add_ingredient))
+                    .route("/remove-ingredient", web::post().to(routes::remove_ingredient))
+                    .route("/share-shelf", web::get().to(routes::share_shelf))
+                    .route("/api/ingredients", web::get().to(routes::api_ingredients))
             )
     })
     .bind(app_host)?

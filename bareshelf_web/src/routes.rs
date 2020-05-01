@@ -7,16 +7,22 @@ use serde_json::json;
 
 use crate::{
     flash::{FlashMessage, FlashResponse},
+    sharing::{decode_share_token, encode_share_token},
     shelf,
-    shelf::Shelf,
+    shelf::{ingredient_slugs, Shelf},
     views::RecipeSearchResult,
-    sharing::{encode_share_token, decode_share_token},
 };
 
+/// Basic route with no dependencies to check the server is up
 pub(crate) async fn status() -> impl Responder {
     HttpResponse::Ok().json(json!({"status": "ok"}))
 }
 
+/// Default recipe UI
+///
+/// This UI allows the user to add ingredients to their shelf and see a list
+/// of recipes sorted by score. Recipes they can make right now will usually
+/// come first and then recipes with a small number of missing ingredients.
 pub(crate) async fn index(
     tera: web::Data<tera::Tera>,
     searcher: web::Data<bareshelf::Searcher>,
@@ -29,7 +35,7 @@ pub(crate) async fn index(
     ctx.insert("flash", &flash.take());
 
     if !ingredients.is_empty() {
-        let ingredients: Vec<_> = ingredients.iter().map(|i| i.slug.clone()).collect();
+        let ingredients = ingredient_slugs(&ingredients);
         let recipes = searcher
             .recipes_by_ingredients(&ingredients, &[], &[], 100) // TODO: move this to a config
             .map_err(|_| error::ErrorInternalServerError("failed to search"))?;
@@ -45,6 +51,13 @@ pub(crate) async fn index(
     render(tera, "index.html", Some(&ctx))
 }
 
+/// Alternative UI 2
+///
+/// This UI allows the user to manage ingredients in their shelf but also to
+/// add key ingredients and banned ingredients. Key ingredients must appear in
+/// all the recipes. This is useful if you want to know what you can make with
+/// a specific ingredient. Banned ingredients must not appear in any of the recipes.
+/// This is useful for dietry constraints such as vegetarian.
 pub(crate) async fn ui2(
     tera: web::Data<tera::Tera>,
     searcher: web::Data<bareshelf::Searcher>,
@@ -63,23 +76,76 @@ pub(crate) async fn ui2(
     ctx.insert("flash", &flash.take());
 
     if !ingredients.is_empty() {
-        let ingredients: Vec<_> = ingredients.iter().map(|i| i.slug.clone()).collect();
-        let key_ingredients: Vec<_> = key_ingredients.iter().map(|i| i.slug.clone()).collect();
-        let banned_ingredients: Vec<_> =
-            banned_ingredients.iter().map(|i| i.slug.clone()).collect();
+        let ingredients = ingredient_slugs(&ingredients);
+        let key_ingredients = ingredient_slugs(&key_ingredients);
+        let banned_ingredients = ingredient_slugs(&banned_ingredients);
+
         let recipes = searcher
             .recipes_by_ingredients(&ingredients, &key_ingredients, &banned_ingredients, 100)
-            .map_err(|_| error::ErrorInternalServerError("failed to search"))?;
-        ctx.insert(
-            "recipes",
-            &recipes
-                .into_iter()
-                .map(RecipeSearchResult::from)
-                .collect::<Vec<_>>(),
-        );
+            .map_err(|_| error::ErrorInternalServerError("failed to search"))?
+            .into_iter()
+            .map(RecipeSearchResult::from)
+            .collect::<Vec<_>>();
+
+        ctx.insert("recipes", &recipes);
     }
 
     render(tera, "ui2.html", Some(&ctx))
+}
+
+/// Alternative UI 3
+///
+/// This UI separates ingredients management from recipe listing.
+/// If the user's shelf is empty they will automatically be directed
+/// towards ingredients management.
+pub(crate) async fn ui3(
+    tera: web::Data<tera::Tera>,
+    searcher: web::Data<bareshelf::Searcher>,
+    shelf: Shelf,
+    flash: FlashMessage,
+) -> Result<HttpResponse, Error> {
+    let mut ctx = tera::Context::new();
+
+    let ingredients = ingredient_slugs(&shelf.get_ingredients(&shelf::Bucket::Ingredients)?);
+
+    ctx.insert("flash", &flash.take());
+
+    if !ingredients.is_empty() {
+        let key_ingredients =
+            ingredient_slugs(&shelf.get_ingredients(&shelf::Bucket::KeyIngredients)?);
+        let banned_ingredients =
+            ingredient_slugs(&shelf.get_ingredients(&shelf::Bucket::BannedIngredients)?);
+
+        let recipes = searcher
+            .recipes_by_ingredients(&ingredients, &key_ingredients, &banned_ingredients, 100)
+            .map_err(|_| error::ErrorInternalServerError("failed to search"))?
+            .into_iter()
+            .map(RecipeSearchResult::from)
+            .collect::<Vec<_>>();
+
+        ctx.insert("recipes", &recipes);
+    }
+
+    render(tera, "ui3.html", Some(&ctx))
+}
+
+pub(crate) async fn ingredients(
+    tera: web::Data<tera::Tera>,
+    shelf: Shelf,
+    flash: FlashMessage,
+) -> Result<HttpResponse, Error> {
+    let mut ctx = tera::Context::new();
+
+    let ingredients = shelf.get_ingredients(&shelf::Bucket::Ingredients)?;
+    ctx.insert("ingredients", &ingredients);
+    let key_ingredients = shelf.get_ingredients(&shelf::Bucket::KeyIngredients)?;
+    ctx.insert("key_ingredients", &key_ingredients);
+    let banned_ingredients = shelf.get_ingredients(&shelf::Bucket::BannedIngredients)?;
+    ctx.insert("banned_ingredients", &banned_ingredients);
+
+    ctx.insert("flash", &flash.take());
+
+    render(tera, "ingredients.html", Some(&ctx))
 }
 
 #[derive(Deserialize)]
@@ -156,7 +222,7 @@ pub struct Search {
     bucket: shelf::Bucket,
 }
 
-pub(crate) async fn ingredients(
+pub(crate) async fn api_ingredients(
     search: web::Query<Search>,
     searcher: web::Data<bareshelf::Searcher>,
     shelf: Shelf,
@@ -201,7 +267,16 @@ pub(crate) async fn share_shelf(
         let connection_info = req.connection_info();
         let token = encode_share_token(&app_data.cookie_key, shelf.uid())?;
         ctx.insert("token", &token);
-        ctx.insert("share_url", &format!("{}://{}{}?token={}", connection_info.scheme(), connection_info.host(), req.uri().path(), token));
+        ctx.insert(
+            "share_url",
+            &format!(
+                "{}://{}{}?token={}",
+                connection_info.scheme(),
+                connection_info.host(),
+                req.uri().path(),
+                token
+            ),
+        );
     }
     render(tera, "share-shelf.html", Some(&ctx))
 }

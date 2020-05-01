@@ -8,6 +8,10 @@ use bareshelf::Ingredient;
 
 use crate::error::Error;
 
+pub(crate) fn ingredient_slugs(ingredients: &Vec<Ingredient>) -> Vec<String> {
+    ingredients.iter().map(Ingredient::slug).collect()
+}
+
 pub(crate) struct Shelf {
     sled: sled::Db, // TODO: replace this with a trait if testing becomes slow
     uid: u32,

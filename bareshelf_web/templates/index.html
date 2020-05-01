@@ -33,35 +33,17 @@
   <div id=ingredients class="col s12 m4 l4 xl3">
     <h3>Ingredients</h3>
     <a class=quicklink href="#recipes">go to recipes</a>
-    <div class="card">
-      <div class="card-content">
-        <form action="/add-ingredient" method="post">
-          <input type=hidden name=bucket value=ingredients>
-          <div class=input-field>
-            <input class=autocomplete type=text name=ingredient id=add-ingredient autocomplete=off>
-            <label for=add-ingredient>Ingredient</label>
-            <p>Add ingredients that you already have here</p>
 
-            <button class="btn waves-effect waves-light" type=submit name=action>
-               add to shelf
-            </button>
-          </div>
-        </form>
-        <form action="/remove-ingredient" method=post>
-          <input type=hidden name=bucket value=ingredients>
-        <ul class="collection search-ingredients">
-          {% for ingredient in ingredients %}
-          <li class="collection-item">
-            {{ ingredient.name }}
-            <button class="btn-floating btn-small waves-effect right" type=submit name=ingredient value={{ingredient.slug}}>
-              <i class="material-icons">remove</i>
-            </button>
-          </li>
-          {% endfor %}
-        </ul>
-        </form>
-      </div>
-    </div>
+    {{
+      macros::ingredients_bucket(
+        ingredients=ingredients,
+        title="Ingredient",
+        info="Add ingredients that you already have here",
+        bucket="ingredients",
+        redirect="/"
+      )
+    }}
+
   </div>
 
   <div id=recipes class="col s12 m8 l8 xl9">
@@ -69,49 +51,7 @@
     <a class=quicklink href="#ingredients">go to ingredients</a>
     {% if recipes %}
     {% for recipe in recipes %}
-    <div class="card">
-      {% if recipe.image_name %}
-      <div class="card-image">
-        <img src="{{ macros::full_image(name=recipe.image_name) }}">
-      </div>
-      {% endif %}
-
-      <div class="card-content">
-        <div class="recipe-source grey-text text-darken-2">{{recipe.source}}</div>
-        <span class="card-title">
-          <a href="{{recipe.url}}">{{ recipe.title }}</a>
-          {% if recipe.chef_name %}
-            <span class="recipe-chef-name">by {{ recipe.chef_name }}</span>
-          {% endif %}
-        </span>
-
-
-        {% if recipe.num_missing > 0 %}
-        <div class=recipe-ingredients>
-          <p style="float:left">You would need:</p>
-          <ol>
-            {% for ingredient in recipe.ingredients %}
-            {% if ingredient.is_missing %}
-            <li>{{ ingredient.name }}</li>
-            {% endif %}{% endfor %}
-          </ol>
-        </div>
-        {% else %}
-        <p>You have everything you need for this recipe!</p>
-        {% endif %}
-
-        <div class=recipe-ingredients>
-          <p style="float:left">{% if recipe.num_missing > 0 %}All ingredients{% else %}Ingredients {% endif %}:</p>
-          <ol>
-            {% for ingredient in recipe.ingredients %}
-              <li class="{% if ingredient.is_missing %}missing-ingredient{% endif %}">
-                <p>{{ ingredient.name }}</p>
-              </li>
-            {% endfor %}
-          </ol>
-        </div>
-      </div>
-    </div>
+      {{ macros::recipe(recipe=recipe, redirect="/") }}
     {% endfor %}
     {% endif %}
   </div>
@@ -132,10 +72,13 @@
       $(this).keyup(function () {
         if ($(self).val().length > 2) {
           $.ajax({
-              url: '/ingredients',
+              url: '/api/ingredients',
               type: 'get',
               cache: false,
-              data: {"term": $(self).val(), "bucket": $(self).closest("form").find("input[name='bucket']").val()},
+              data: {
+                "term": $(self).val(),
+                "bucket": $(self).closest("form").find("input[name='bucket']").val(),
+              },
               success: function (data) {
                   let updateData = {};
                   data.forEach(function(val) {
