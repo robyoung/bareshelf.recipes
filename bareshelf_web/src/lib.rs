@@ -2,7 +2,7 @@ use std::path::Path;
 
 use actix_session::CookieSession;
 use actix_web::{middleware::Logger, web, App, HttpServer};
-use tera::Tera;
+use tera::{Tera, Result as TeraResult};
 
 mod error;
 mod flash;
@@ -11,12 +11,9 @@ mod sharing;
 mod shelf;
 mod views;
 
-pub(crate) struct AppData {
-    cookie_key: Vec<u8>,
-}
-
-fn tera_templates() -> Vec<(&'static str, &'static str)> {
-    vec![
+#[cfg(feature = "embedded-templates")]
+fn templates() -> TeraResult<Tera> {
+    let templates = vec![
         ("index.html", include_str!("../templates/index.html")),
         ("ui2.html", include_str!("../templates/ui2.html")),
         ("ui3.html", include_str!("../templates/ui3.html")),
@@ -34,7 +31,23 @@ fn tera_templates() -> Vec<(&'static str, &'static str)> {
             "share-shelf.html",
             include_str!("../templates/share-shelf.html"),
         ),
-    ]
+    ];
+    match Tera::new("/dev/null/*") {
+        Ok(mut tera) => {
+            tera.add_raw_templates(templates)?;
+            Ok(tera)
+        },
+        Err(err) => Err(err),
+    }
+}
+
+#[cfg(not(feature = "embedded-templates"))]
+fn templates() -> TeraResult<Tera> {
+    Tera::new(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/**/*"))
+}
+
+pub(crate) struct AppData {
+    cookie_key: Vec<u8>,
 }
 
 pub async fn run_server() -> std::io::Result<()> {
@@ -42,9 +55,7 @@ pub async fn run_server() -> std::io::Result<()> {
         base64::decode(&std::env::var("COOKIE_SECRET").expect("COOKIE_SECRET is required"))
             .expect("COOKIE_SECRET is not valid base64");
     let app_host = std::env::var("APP_HOST").expect("APP_HOST must be set");
-    let mut tera = Tera::new("/dev/null/*").unwrap();
-    tera.add_raw_templates(tera_templates()).unwrap();
-    // let tera = Tera::new(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/**/*")).unwrap();
+    let tera = templates().unwrap();
     let searcher = bareshelf::searcher(Path::new(
         &std::env::var("SEARCH_INDEX_PATH").unwrap_or_else(|_| "./search-index".to_string()),
     ))

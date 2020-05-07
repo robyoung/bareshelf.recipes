@@ -13,7 +13,7 @@ run-indexer: build-indexer
 	sudo chown -R robyoung:robyoung search-index
 
 build-web:
-	cargo build -p bareshelf_web --release
+	pushd bareshelf_web && cargo build --features embedded-templates ---release --target-dir ../target
 
 deploy-web:
 	scp target/release/bareshelf_web $(WEB_DEPLOY_TARGET):
