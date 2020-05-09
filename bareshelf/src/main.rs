@@ -2,7 +2,7 @@ use std::{collections::HashSet, path::PathBuf};
 
 use structopt::StructOpt;
 
-use bareshelf::{searcher, Result};
+use bareshelf::{searcher, IngredientQuery, RecipeQuery, Result};
 
 #[derive(StructOpt)]
 struct Cli {
@@ -41,32 +41,31 @@ fn main() -> Result<()> {
             limit,
             facets: search_facets,
         } => {
-            searcher
-                .recipes_by_ingredients(&search_facets, &vec![], &vec![], limit)?
-                .iter()
-                .for_each(|recipe| {
-                    println!("\n> {}    ({})", recipe.recipe.title, recipe.score);
-                    println!(
-                        "{} matching, {} missing",
-                        recipe.recipe.ingredients.len() - recipe.missing_ingredients.len(),
-                        recipe.missing_ingredients.len()
-                    );
-                    println!("Missing: {:?}", recipe.missing_ingredients);
-                    let missing_set: HashSet<_> =
-                        recipe.missing_ingredients.iter().cloned().collect();
-                    for ingredient in &recipe.recipe.ingredients {
-                        print!("    - {}", ingredient.slug);
-                        if missing_set.contains(&ingredient.slug) {
-                            print!("  - MISSING");
-                        }
-                        println!();
+            let query = RecipeQuery::default()
+                .shelf_ingredients(&search_facets)
+                .limit(limit);
+
+            searcher.recipes(query)?.iter().for_each(|recipe| {
+                println!("\n> {}    ({})", recipe.recipe.title, recipe.score);
+                println!(
+                    "{} matching, {} missing",
+                    recipe.recipe.ingredients.len() - recipe.missing_ingredients.len(),
+                    recipe.missing_ingredients.len()
+                );
+                println!("Missing: {:?}", recipe.missing_ingredients);
+                let missing_set: HashSet<_> = recipe.missing_ingredients.iter().cloned().collect();
+                for ingredient in &recipe.recipe.ingredients {
+                    print!("    - {}", ingredient.slug);
+                    if missing_set.contains(&ingredient.slug) {
+                        print!("  - MISSING");
                     }
-                });
+                    println!();
+                }
+            });
         }
         Command::IngredientsByPrefix { prefix } => {
             searcher
-                .ingredients_by_prefix(&prefix)?
-                .0
+                .ingredients(IngredientQuery::by_prefix(&prefix))?
                 .iter()
                 .for_each(|ingredient| {
                     println!("{:?}", ingredient);

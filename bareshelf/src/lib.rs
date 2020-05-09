@@ -10,7 +10,7 @@ pub use crate::{
     datatypes::{Ingredient, IngredientSlug, Recipe},
     error::{Error, Result},
     indexer::Indexer,
-    searcher::{RecipeSearchResult, Searcher},
+    searcher::{IngredientQuery, RecipeQuery, RecipeSearchResult, Searcher},
 };
 
 pub fn indexer(path: &Path) -> Result<Indexer> {
@@ -117,12 +117,18 @@ mod tests {
         index_recipes(&recipes_index, &ingredients_index);
 
         let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
-        let query_ingredients = vec!["egg", "oil", "garlic", "mushroom"]
-            .into_iter()
-            .map(String::from)
-            .collect::<Vec<_>>();
+
+        let query = RecipeQuery::default()
+            .shelf_ingredients(&[
+                "egg".to_string(),
+                "oil".to_string(),
+                "garlic".to_string(),
+                "mushroom".to_string(),
+            ])
+            .limit(2);
+
         let results = searcher
-            .recipes_by_ingredients(&query_ingredients, &vec![], &vec![], 2)
+            .recipes(query)
             .unwrap();
 
         assert_eq!(
@@ -141,9 +147,11 @@ mod tests {
         index_ingredients(&recipes_index, &ingredients_index);
 
         let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
-        let ingredient = searcher.ingredient_by_name("Sugar").unwrap().unwrap();
+        let query = IngredientQuery::by_name("Sugar");
+        let ingredients = searcher.ingredients(query).unwrap();
 
-        assert_eq!(ingredient.name, "Sugar");
+        assert_eq!(ingredients[0].name, "Sugar");
+        assert_eq!(ingredients.len(), 1);
     }
 
     #[test]
@@ -153,9 +161,10 @@ mod tests {
         index_ingredients(&recipes_index, &ingredients_index);
 
         let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
-        let ingredients = searcher.ingredients_by_prefix("brown su").unwrap();
+        let query = IngredientQuery::by_prefix("brown su");
+        let ingredients = searcher.ingredients(query).unwrap();
 
-        assert_eq!(ingredients.0[0].name, "Brown sugar");
+        assert_eq!(ingredients[0].name, "Brown sugar");
     }
 
     #[test]
@@ -165,8 +174,9 @@ mod tests {
         index_ingredients(&recipes_index, &ingredients_index);
 
         let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
-        let ingredients = searcher.ingredients_by_prefix("butt").unwrap();
+        let query = IngredientQuery::by_prefix("butt");
+        let ingredients = searcher.ingredients(query).unwrap();
 
-        assert_eq!(ingredients.0[0].name, "Butter");
+        assert_eq!(ingredients[0].name, "Butter");
     }
 }

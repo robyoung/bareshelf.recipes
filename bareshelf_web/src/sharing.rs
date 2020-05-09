@@ -24,7 +24,7 @@ fn invalid_token<T>(_: T) -> Error {
 struct Nothing;
 
 pub(crate) fn decode_share_token(secret: &[u8], token: &str) -> Result<u32, Error> {
-    let parts: Vec<_> = token.split(".").collect();
+    let parts: Vec<_> = token.split('.').collect();
     if parts.len() != 2 {
         return Err(invalid_token(Nothing));
     }

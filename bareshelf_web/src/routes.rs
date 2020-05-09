@@ -1,7 +1,6 @@
-use std::collections::HashSet;
-
 use actix_session::Session;
 use actix_web::{error, web, Error, HttpRequest, HttpResponse, Responder};
+use bareshelf::{IngredientQuery, RecipeQuery};
 use serde::Deserialize;
 use serde_json::json;
 
@@ -35,9 +34,12 @@ pub(crate) async fn index(
     ctx.insert("flash", &flash.take());
 
     if !ingredients.is_empty() {
-        let ingredients = ingredient_slugs(&ingredients);
+        let query = RecipeQuery::default()
+            .shelf_ingredients(&ingredient_slugs(&ingredients))
+            .limit(100);
+
         let recipes = searcher
-            .recipes_by_ingredients(&ingredients, &[], &[], 100) // TODO: move this to a config
+            .recipes(query)
             .map_err(|_| error::ErrorInternalServerError("failed to search"))?;
         ctx.insert(
             "recipes",
@@ -76,12 +78,13 @@ pub(crate) async fn ui2(
     ctx.insert("flash", &flash.take());
 
     if !ingredients.is_empty() {
-        let ingredients = ingredient_slugs(&ingredients);
-        let key_ingredients = ingredient_slugs(&key_ingredients);
-        let banned_ingredients = ingredient_slugs(&banned_ingredients);
+        let query = RecipeQuery::default()
+            .shelf_ingredients(&ingredient_slugs(&ingredients))
+            .key_ingredients(&ingredient_slugs(&key_ingredients))
+            .banned_ingredients(&ingredient_slugs(&banned_ingredients));
 
         let recipes = searcher
-            .recipes_by_ingredients(&ingredients, &key_ingredients, &banned_ingredients, 100)
+            .recipes(query)
             .map_err(|_| error::ErrorInternalServerError("failed to search"))?
             .into_iter()
             .map(RecipeSearchResult::from)
@@ -111,13 +114,17 @@ pub(crate) async fn ui3(
     ctx.insert("flash", &flash.take());
 
     if !ingredients.is_empty() {
-        let key_ingredients =
-            ingredient_slugs(&shelf.get_ingredients(&shelf::Bucket::KeyIngredients)?);
-        let banned_ingredients =
-            ingredient_slugs(&shelf.get_ingredients(&shelf::Bucket::BannedIngredients)?);
+        let query = RecipeQuery::default()
+            .shelf_ingredients(&ingredients)
+            .key_ingredients(&ingredient_slugs(
+                &shelf.get_ingredients(&shelf::Bucket::KeyIngredients)?,
+            ))
+            .banned_ingredients(&ingredient_slugs(
+                &shelf.get_ingredients(&shelf::Bucket::BannedIngredients)?,
+            ));
 
         let recipes = searcher
-            .recipes_by_ingredients(&ingredients, &key_ingredients, &banned_ingredients, 100)
+            .recipes(query)
             .map_err(|_| error::ErrorInternalServerError("failed to search"))?
             .into_iter()
             .map(RecipeSearchResult::from)
@@ -160,13 +167,11 @@ pub(crate) async fn add_ingredient(
     searcher: web::Data<bareshelf::Searcher>,
     shelf: Shelf,
 ) -> Result<FlashResponse, Error> {
-    let ingredient = searcher
-        .ingredient_by_name(&form.ingredient)
+    let mut ingredients = searcher
+        .ingredients(IngredientQuery::by_name(&form.ingredient))
         .map_err(|_| error::ErrorInternalServerError("search error"))?;
 
-    let ingredient = if ingredient.is_some() {
-        ingredient
-    } else {
+    let ingredient = if ingredients.is_empty() {
         let mut ingredients =
             get_ingredients_by_prefix(&shelf, searcher.as_ref(), &form.bucket, &form.ingredient)?;
 
@@ -175,6 +180,8 @@ pub(crate) async fn add_ingredient(
         } else {
             Some(ingredients.remove(0))
         }
+    } else {
+        Some(ingredients.remove(0))
     };
 
     let flash = if let Some(ingredient) = ingredient {
@@ -303,14 +310,13 @@ fn get_ingredients_by_prefix(
     bucket: &shelf::Bucket,
     prefix: &str,
 ) -> Result<Vec<bareshelf::Ingredient>, Error> {
-    let existing_ingredients: HashSet<_> = shelf.get_ingredients(&bucket)?.into_iter().collect();
-    let (ingredients, _) = searcher
-        .ingredients_by_prefix(&prefix)
+    let existing_ingredients = shelf.get_ingredients(&bucket)?;
+
+    let query = IngredientQuery::by_prefix(&prefix).excluding(&existing_ingredients);
+
+    let ingredients = searcher
+        .ingredients(query)
         .map_err(|_| error::ErrorInternalServerError("failed to search ingredients"))?;
-    let ingredients: Vec<_> = ingredients
-        .into_iter()
-        .filter(|ingredient| !existing_ingredients.contains(ingredient))
-        .collect();
 
     Ok(ingredients)
 }
