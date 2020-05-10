@@ -2,12 +2,25 @@
 {% import "macros.html" as macros %}
 
 {% block content %}
-  <div id=recipes class="col s12">
-    <h3>Recipes</h3>
-    {% if recipes %}
-    {% for recipe in recipes %}
+  <div class=row>
+  <div id=can_make_now class="col s12 l6">
+    <h3>Recipes you can make right now</h3>
+    <a class=quicklink href="#one_missing">go to one missing</a>
+    {% if can_make_now %}
+    {% for recipe in can_make_now %}
       {{ macros::recipe(recipe=recipe, redirect="/ui3") }}
     {% endfor %}
     {% endif %}
+  </div>
+
+  <div id=one_missing class="col s12 l6">
+    <h3>Recipes with one ingredient missing</h3>
+    <a class=quicklink href="#can_make_now">go to can make now</a>
+    {% if one_missing %}
+    {% for recipe in one_missing %}
+      {{ macros::recipe(recipe=recipe, redirect="/ui3") }}
+    {% endfor %}
+    {% endif %}
+  </div>
   </div>
 {% endblock content %}

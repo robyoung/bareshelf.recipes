@@ -16,20 +16,21 @@ pub struct RecipeSearchResult {
     num_missing: usize,
 }
 
-impl From<bareshelf::RecipeSearchResult> for RecipeSearchResult {
-    fn from(recipe: bareshelf::RecipeSearchResult) -> Self {
+
+impl From<&bareshelf::RecipeSearchResult> for RecipeSearchResult {
+    fn from(recipe: &bareshelf::RecipeSearchResult) -> Self {
         let missing: HashSet<_> = recipe.missing_ingredients.iter().collect();
         Self {
             score: recipe.score,
-            title: recipe.recipe.title,
+            title: recipe.recipe.title.clone(),
             url: recipe.recipe.url.clone(),
             source: url::Url::parse(&recipe.recipe.url)
                 .unwrap()
                 .host_str()
                 .unwrap()
                 .to_owned(),
-            chef_name: recipe.recipe.chef_name,
-            image_name: recipe.recipe.image_name,
+            chef_name: recipe.recipe.chef_name.clone(),
+            image_name: recipe.recipe.image_name.clone(),
             ingredients: recipe
                 .recipe
                 .ingredients
@@ -42,6 +43,12 @@ impl From<bareshelf::RecipeSearchResult> for RecipeSearchResult {
                 .collect(),
             num_missing: missing.len(),
         }
+    }
+}
+
+impl From<bareshelf::RecipeSearchResult> for RecipeSearchResult {
+    fn from(recipe: bareshelf::RecipeSearchResult) -> Self {
+        RecipeSearchResult::from(&recipe)
     }
 }
 

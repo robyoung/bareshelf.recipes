@@ -6,7 +6,7 @@ use tantivy::{
     query::{AllQuery, BooleanQuery, FuzzyTermQuery, Occur, Query, QueryParser, TermQuery},
     schema::{Facet, Field, FieldType, IndexRecordOption, Schema, Term},
     tokenizer::Token,
-    DocAddress, DocId, Document, IndexReader, LeasedItem, Score, SegmentReader,
+    DocAddress, DocId, IndexReader, LeasedItem, Score, SegmentReader,
 };
 
 use crate::{
@@ -50,17 +50,18 @@ impl Searcher {
             .collect())
     }
 
-    pub fn recipes(&self, query: RecipeQuery) -> Result<Vec<RecipeSearchResult>> {
+    pub fn recipes(&self, query: RecipeQuery) -> Result<RecipeSearchResults> {
         let ingredient_slug_field = self.recipes_schema.get_field("ingredient_slug").unwrap();
 
         let shelf_igredients_set: HashSet<IngredientSlug> =
             query.shelf_ingredients.iter().cloned().collect();
-        let tantivy_query = query.query(ingredient_slug_field);
-        let top_docs_collector = query.top_docs(ingredient_slug_field);
         let searcher = self.recipes_reader.searcher();
 
-        let top_docs: Vec<_> = searcher
-            .search(&tantivy_query, &top_docs_collector)?
+        let recipes: Vec<_> = searcher
+            .search(
+                &self.recipes_query(&query, ingredient_slug_field),
+                &self.recipes_collector(&query, ingredient_slug_field),
+            )?
             .iter()
             .map(|(score, doc_id)| {
                 let document = searcher.doc(*doc_id).unwrap();
@@ -75,29 +76,158 @@ impl Searcher {
                     .difference(&shelf_igredients_set)
                     .cloned()
                     .collect();
+
                 RecipeSearchResult {
                     score: *score,
-                    document,
                     recipe,
                     missing_ingredients: missing_ingredients.iter().map(Into::into).collect(),
                 }
             })
             .collect();
 
-        Ok(top_docs)
+        Ok(RecipeSearchResults::new(query, recipes))
+    }
+
+    fn recipes_query(&self, query: &RecipeQuery, ingredient_slug_field: Field) -> BooleanQuery {
+        BooleanQuery::from(
+            query
+                .shelf_ingredients
+                .iter()
+                .map(slug_to_query(ingredient_slug_field, Occur::Should))
+                .chain(
+                    query
+                        .key_ingredients
+                        .iter()
+                        .map(slug_to_query(ingredient_slug_field, Occur::Must)),
+                )
+                .chain(
+                    query
+                        .banned_ingredients
+                        .iter()
+                        .map(slug_to_query(ingredient_slug_field, Occur::MustNot)),
+                )
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    fn recipes_collector(
+        &self,
+        query: &RecipeQuery,
+        ingredient_slug_field: Field,
+    ) -> impl Collector<Fruit = Vec<(f32, DocAddress)>> {
+        let ingredients_facets: Vec<Facet> =
+            query.shelf_ingredients.iter().map(Into::into).collect();
+
+        TopDocs::with_limit(query.limit).tweak_score(move |segment_reader: &SegmentReader| {
+            let mut ingredient_reader = segment_reader.facet_reader(ingredient_slug_field).unwrap();
+            let query_ords = get_query_ords(&ingredients_facets, &ingredient_reader);
+            let mut facet_ords_buffer = Vec::with_capacity(20);
+
+            move |doc: DocId, original_score: Score| {
+                calculate_score(
+                    doc,
+                    original_score,
+                    &mut ingredient_reader,
+                    &mut facet_ords_buffer,
+                    &query_ords,
+                )
+            }
+        })
     }
 
     pub fn ingredients(&self, query: IngredientQuery) -> Result<Vec<Ingredient>> {
-        let tantivy_query = query.query(&self.ingredients_index);
         let searcher = self.ingredients_reader.searcher();
-        let top_docs = searcher.search(&tantivy_query, &TopDocs::with_limit(20))?;
+        let top_docs =
+            searcher.search(&self.ingredients_query(&query), &TopDocs::with_limit(20))?;
         let top_docs = self
             .load_ingredients(&searcher, top_docs)
             .into_iter()
             .map(|(_, i)| i)
             .collect::<Vec<_>>();
 
-        Ok(query.post_process(&self.ingredients_index, top_docs))
+        Ok(self.post_process_ingredients(&query, top_docs))
+    }
+
+    fn ingredients_query(&self, query: &IngredientQuery) -> Box<dyn Query> {
+        let name_field = self.ingredients_schema.get_field("name").unwrap();
+
+        match &query.by {
+            IngredientQueryBy::Prefix(prefix) => {
+                let tokens = get_field_tokens(
+                    &self.ingredients_index,
+                    &self.ingredients_schema,
+                    name_field,
+                    &prefix,
+                )
+                .unwrap();
+                Box::new(BooleanQuery::from(
+                    tokens
+                        .iter()
+                        .map(|token| {
+                            let query: Box<dyn Query> = Box::new(FuzzyTermQuery::new_prefix(
+                                Term::from_field_text(name_field, &token.text),
+                                0,
+                                true,
+                            ));
+                            (Occur::Must, query)
+                        })
+                        .collect::<Vec<_>>(),
+                ))
+            }
+            IngredientQueryBy::Name(name) => Box::new(
+                QueryParser::for_index(&self.ingredients_index, vec![name_field])
+                    .parse_query(&name)
+                    .unwrap(),
+            ),
+            IngredientQueryBy::All => Box::new(AllQuery),
+        }
+    }
+
+    fn post_process_ingredients(
+        &self,
+        query: &IngredientQuery,
+        mut top_docs: Vec<Ingredient>,
+    ) -> Vec<Ingredient> {
+        match &query.by {
+            IngredientQueryBy::Prefix(prefix) => {
+                let name_field = self.ingredients_schema.get_field("name").unwrap();
+                let tokens = get_field_tokens(
+                    &self.ingredients_index,
+                    &self.ingredients_schema,
+                    name_field,
+                    &prefix,
+                )
+                .unwrap();
+                // Use the same sorting as used by the materialize autocomplete
+                top_docs.sort_by(|left, right| {
+                    let order = left
+                        .name
+                        .to_lowercase()
+                        .find(&tokens[0].text)
+                        .cmp(&right.name.to_lowercase().find(&tokens[0].text));
+                    if order == Ordering::Equal {
+                        left.name.len().cmp(&right.name.len())
+                    } else {
+                        order
+                    }
+                });
+            }
+            IngredientQueryBy::Name(name) => {
+                top_docs = top_docs
+                    .iter()
+                    .cloned()
+                    .filter(|i| i.name.to_lowercase() == name.to_lowercase())
+                    .collect();
+            }
+            _ => {}
+        }
+        if let Some(excluding) = &query.excluding {
+            top_docs = top_docs
+                .into_iter()
+                .filter(|ingredient| !excluding.contains(ingredient))
+                .collect();
+        }
+        top_docs
     }
 
     fn load_ingredients(
@@ -168,49 +298,6 @@ impl RecipeQuery {
         self.banned_ingredients = ingredients.iter().map(IngredientSlug::from).collect();
         self
     }
-
-    fn query(&self, ingredient_slug_field: Field) -> BooleanQuery {
-        BooleanQuery::from(
-            self.shelf_ingredients
-                .iter()
-                .map(slug_to_query(ingredient_slug_field, Occur::Should))
-                .chain(
-                    self.key_ingredients
-                        .iter()
-                        .map(slug_to_query(ingredient_slug_field, Occur::Must)),
-                )
-                .chain(
-                    self.banned_ingredients
-                        .iter()
-                        .map(slug_to_query(ingredient_slug_field, Occur::MustNot)),
-                )
-                .collect::<Vec<_>>(),
-        )
-    }
-
-    fn top_docs(
-        &self,
-        ingredient_slug_field: Field,
-    ) -> impl Collector<Fruit = Vec<(f32, DocAddress)>> {
-        let ingredients_facets: Vec<Facet> =
-            self.shelf_ingredients.iter().map(Into::into).collect();
-
-        TopDocs::with_limit(self.limit).tweak_score(move |segment_reader: &SegmentReader| {
-            let mut ingredient_reader = segment_reader.facet_reader(ingredient_slug_field).unwrap();
-            let query_ords = get_query_ords(&ingredients_facets, &ingredient_reader);
-            let mut facet_ords_buffer = Vec::with_capacity(20);
-
-            move |doc: DocId, original_score: Score| {
-                calculate_score(
-                    doc,
-                    original_score,
-                    &mut ingredient_reader,
-                    &mut facet_ords_buffer,
-                    &query_ords,
-                )
-            }
-        })
-    }
 }
 
 fn slug_to_query(
@@ -263,79 +350,6 @@ impl IngredientQuery {
         self.excluding = Some(excluding.iter().cloned().collect());
         self
     }
-
-    fn query(&self, index: &tantivy::Index) -> Box<dyn Query> {
-        let schema = index.schema();
-        let name_field = schema.get_field("name").unwrap();
-
-        match &self.by {
-            IngredientQueryBy::Prefix(prefix) => {
-                let tokens = get_field_tokens(&index, &schema, name_field, &prefix).unwrap();
-                Box::new(BooleanQuery::from(
-                    tokens
-                        .iter()
-                        .map(|token| {
-                            let query: Box<dyn Query> = Box::new(FuzzyTermQuery::new_prefix(
-                                Term::from_field_text(name_field, &token.text),
-                                0,
-                                true,
-                            ));
-                            (Occur::Must, query)
-                        })
-                        .collect::<Vec<_>>(),
-                ))
-            }
-            IngredientQueryBy::Name(name) => Box::new(
-                QueryParser::for_index(index, vec![name_field])
-                    .parse_query(&name)
-                    .unwrap(),
-            ),
-            IngredientQueryBy::All => Box::new(AllQuery),
-        }
-    }
-
-    fn post_process(
-        &self,
-        index: &tantivy::Index,
-        mut top_docs: Vec<Ingredient>,
-    ) -> Vec<Ingredient> {
-        match &self.by {
-            IngredientQueryBy::Prefix(prefix) => {
-                // TODO: extract this
-                let schema = index.schema();
-                let name_field = schema.get_field("name").unwrap();
-                let tokens = get_field_tokens(&index, &schema, name_field, &prefix).unwrap();
-                // Use the same sorting as used by the materialize autocomplete
-                top_docs.sort_by(|left, right| {
-                    let order = left
-                        .name
-                        .to_lowercase()
-                        .find(&tokens[0].text)
-                        .cmp(&right.name.to_lowercase().find(&tokens[0].text));
-                    if order == Ordering::Equal {
-                        left.name.len().cmp(&right.name.len())
-                    } else {
-                        order
-                    }
-                });
-            }
-            IngredientQueryBy::Name(name) => {
-                top_docs = top_docs
-                    .iter()
-                    .cloned()
-                    .filter(|i| i.name.to_lowercase() == name.to_lowercase())
-                    .collect();
-            }
-            _ => {}
-        }
-        if let Some(excluding) = &self.excluding {
-            top_docs = top_docs
-                .into_iter()
-                .filter(|ingredient| !excluding.contains(ingredient))
-                .collect();
-        }
-        top_docs
-    }
 }
 
 fn get_field_tokens(
@@ -363,9 +377,32 @@ fn get_field_tokens(
     }
 }
 
+pub struct RecipeSearchResults {
+    #[allow(dead_code)]
+    query: RecipeQuery,
+    recipes: Vec<RecipeSearchResult>
+}
+
+impl RecipeSearchResults {
+    fn new(query: RecipeQuery, recipes: Vec<RecipeSearchResult>) -> Self {
+        Self { query, recipes }
+    }
+
+    pub fn all(&self) -> &[RecipeSearchResult] {
+        &self.recipes
+    }
+
+    pub fn can_make_now(&self) -> impl Iterator<Item = &RecipeSearchResult> {
+        self.recipes.iter().filter(|recipe| recipe.missing_ingredients.len() == 0)
+    }
+
+    pub fn one_missing(&self) -> impl Iterator<Item = &RecipeSearchResult> {
+        self.recipes.iter().filter(|recipe| recipe.missing_ingredients.len() == 1)
+    }
+}
+
 pub struct RecipeSearchResult {
     pub score: Score,
-    pub document: Document, // TODO: something more useful
     pub recipe: Recipe,
     pub missing_ingredients: Vec<String>,
 }

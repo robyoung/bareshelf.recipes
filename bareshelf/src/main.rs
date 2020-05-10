@@ -45,7 +45,7 @@ fn main() -> Result<()> {
                 .shelf_ingredients(&search_facets)
                 .limit(limit);
 
-            searcher.recipes(query)?.iter().for_each(|recipe| {
+            searcher.recipes(query)?.all().iter().for_each(|recipe| {
                 println!("\n> {}    ({})", recipe.recipe.title, recipe.score);
                 println!(
                     "{} matching, {} missing",

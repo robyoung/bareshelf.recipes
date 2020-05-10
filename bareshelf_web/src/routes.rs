@@ -44,6 +44,7 @@ pub(crate) async fn index(
         ctx.insert(
             "recipes",
             &recipes
+                .all()
                 .into_iter()
                 .map(RecipeSearchResult::from)
                 .collect::<Vec<_>>(),
@@ -86,6 +87,7 @@ pub(crate) async fn ui2(
         let recipes = searcher
             .recipes(query)
             .map_err(|_| error::ErrorInternalServerError("failed to search"))?
+            .all()
             .into_iter()
             .map(RecipeSearchResult::from)
             .collect::<Vec<_>>();
@@ -125,12 +127,20 @@ pub(crate) async fn ui3(
 
         let recipes = searcher
             .recipes(query)
-            .map_err(|_| error::ErrorInternalServerError("failed to search"))?
-            .into_iter()
+            .map_err(|_| error::ErrorInternalServerError("failed to search"))?;
+
+        let can_make_now = recipes
+            .can_make_now()
             .map(RecipeSearchResult::from)
             .collect::<Vec<_>>();
 
-        ctx.insert("recipes", &recipes);
+        let one_missing = recipes
+            .one_missing()
+            .map(RecipeSearchResult::from)
+            .collect::<Vec<_>>();
+
+        ctx.insert("can_make_now", &can_make_now);
+        ctx.insert("one_missing", &one_missing);
     }
 
     render(tera, "ui3.html", Some(&ctx))
