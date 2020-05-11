@@ -5,6 +5,7 @@ mod datatypes;
 mod error;
 mod indexer;
 mod searcher;
+mod next_ingredient;
 
 pub use crate::{
     datatypes::{Ingredient, IngredientSlug, Recipe},
@@ -133,6 +134,7 @@ mod tests {
 
         assert_eq!(
             results
+                .all()
                 .iter()
                 .map(|r| r.recipe.title.to_owned())
                 .collect::<Vec<String>>(),

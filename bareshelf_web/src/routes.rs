@@ -1,3 +1,5 @@
+use std::cmp;
+
 use actix_session::Session;
 use actix_web::{error, web, Error, HttpRequest, HttpResponse, Responder};
 use bareshelf::{IngredientQuery, RecipeQuery};
@@ -139,8 +141,18 @@ pub(crate) async fn ui3(
             .map(RecipeSearchResult::from)
             .collect::<Vec<_>>();
 
+        let mut next_ingredients: Vec<(String, usize)> = recipes
+            .next_ingredients()
+            .into_iter()
+            .map(|(slug, count)| (slug.into(), *count))
+            .collect();
+
+        next_ingredients.sort_by_key(|(_, count)| *count);
+        next_ingredients.reverse();
+
         ctx.insert("can_make_now", &can_make_now);
         ctx.insert("one_missing", &one_missing);
+        ctx.insert("next_ingredients", &next_ingredients[..cmp::min(20, next_ingredients.len() - 1)]);
     }
 
     render(tera, "ui3.html", Some(&ctx))

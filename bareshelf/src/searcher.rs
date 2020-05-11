@@ -1,4 +1,7 @@
-use std::{cmp::Ordering, collections::HashSet};
+use std::{
+    cmp::Ordering,
+    collections::{HashMap, HashSet},
+};
 
 use tantivy::{
     collector::{Collector, FacetCollector, TopDocs},
@@ -12,6 +15,7 @@ use tantivy::{
 use crate::{
     datatypes::{Ingredient, IngredientSlug, Recipe},
     error::Result,
+    next_ingredient::NextIngredientCollector,
 };
 
 #[derive(Clone)]
@@ -57,11 +61,15 @@ impl Searcher {
             query.shelf_ingredients.iter().cloned().collect();
         let searcher = self.recipes_reader.searcher();
 
-        let recipes: Vec<_> = searcher
-            .search(
-                &self.recipes_query(&query, ingredient_slug_field),
-                &self.recipes_collector(&query, ingredient_slug_field),
-            )?
+        let (recipes, next_ingredients) = searcher.search(
+            &self.recipes_query(&query, ingredient_slug_field),
+            &(
+                self.recipes_doc_collector(&query, ingredient_slug_field),
+                self.recipes_ingredients_collector(&query, ingredient_slug_field),
+            ),
+        )?;
+
+        let recipes: Vec<_> = recipes
             .iter()
             .map(|(score, doc_id)| {
                 let document = searcher.doc(*doc_id).unwrap();
@@ -85,7 +93,12 @@ impl Searcher {
             })
             .collect();
 
-        Ok(RecipeSearchResults::new(query, recipes))
+        let next_ingredients = next_ingredients
+            .iter()
+            .map(|(facet, count)| (IngredientSlug::from(facet), *count))
+            .collect();
+
+        Ok(RecipeSearchResults::new(query, recipes, next_ingredients))
     }
 
     fn recipes_query(&self, query: &RecipeQuery, ingredient_slug_field: Field) -> BooleanQuery {
@@ -110,7 +123,7 @@ impl Searcher {
         )
     }
 
-    fn recipes_collector(
+    fn recipes_doc_collector(
         &self,
         query: &RecipeQuery,
         ingredient_slug_field: Field,
@@ -133,6 +146,17 @@ impl Searcher {
                 )
             }
         })
+    }
+
+    fn recipes_ingredients_collector(
+        &self,
+        query: &RecipeQuery,
+        ingredient_slug_field: Field,
+    ) -> impl Collector<Fruit = HashMap<Facet, usize>> {
+        let ingredients_facets: Vec<Facet> =
+            query.shelf_ingredients.iter().map(Into::into).collect();
+
+        NextIngredientCollector::new(ingredient_slug_field, ingredients_facets)
     }
 
     pub fn ingredients(&self, query: IngredientQuery) -> Result<Vec<Ingredient>> {
@@ -380,12 +404,21 @@ fn get_field_tokens(
 pub struct RecipeSearchResults {
     #[allow(dead_code)]
     query: RecipeQuery,
-    recipes: Vec<RecipeSearchResult>
+    recipes: Vec<RecipeSearchResult>,
+    next_ingredients: HashMap<IngredientSlug, usize>,
 }
 
 impl RecipeSearchResults {
-    fn new(query: RecipeQuery, recipes: Vec<RecipeSearchResult>) -> Self {
-        Self { query, recipes }
+    fn new(
+        query: RecipeQuery,
+        recipes: Vec<RecipeSearchResult>,
+        next_ingredients: HashMap<IngredientSlug, usize>,
+    ) -> Self {
+        Self {
+            query,
+            recipes,
+            next_ingredients,
+        }
     }
 
     pub fn all(&self) -> &[RecipeSearchResult] {
@@ -393,11 +426,19 @@ impl RecipeSearchResults {
     }
 
     pub fn can_make_now(&self) -> impl Iterator<Item = &RecipeSearchResult> {
-        self.recipes.iter().filter(|recipe| recipe.missing_ingredients.len() == 0)
+        self.recipes
+            .iter()
+            .filter(|recipe| recipe.missing_ingredients.is_empty())
     }
 
     pub fn one_missing(&self) -> impl Iterator<Item = &RecipeSearchResult> {
-        self.recipes.iter().filter(|recipe| recipe.missing_ingredients.len() == 1)
+        self.recipes
+            .iter()
+            .filter(|recipe| recipe.missing_ingredients.len() == 1)
+    }
+
+    pub fn next_ingredients(&self) -> &HashMap<IngredientSlug, usize> {
+        &self.next_ingredients
     }
 }
 
