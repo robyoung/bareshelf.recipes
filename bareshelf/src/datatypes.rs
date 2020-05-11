@@ -79,6 +79,10 @@ impl Ingredient {
             slug: String::from(slug),
         }
     }
+
+    pub fn slug(&self) -> String {
+        self.slug.clone()
+    }
 }
 
 impl PartialOrd for Ingredient {
