@@ -5,6 +5,7 @@ use actix_web::{error, web, Error, HttpRequest, HttpResponse, Responder};
 use bareshelf::{IngredientQuery, RecipeQuery};
 use serde::Deserialize;
 use serde_json::json;
+use rand::seq::SliceRandom;
 
 use crate::{
     flash::{FlashMessage, FlashResponse},
@@ -131,15 +132,21 @@ pub(crate) async fn ui3(
             .recipes(query)
             .map_err(|_| error::ErrorInternalServerError("failed to search"))?;
 
-        let can_make_now = recipes
+        let mut can_make_now = recipes
             .can_make_now()
             .map(RecipeSearchResult::from)
             .collect::<Vec<_>>();
 
-        let one_missing = recipes
+        let mut rng = rand::thread_rng();
+
+        can_make_now.shuffle(&mut rng);
+
+        let mut one_missing = recipes
             .one_missing()
             .map(RecipeSearchResult::from)
             .collect::<Vec<_>>();
+
+        one_missing.shuffle(&mut rng);
 
         let mut next_ingredients: Vec<(String, usize)> = recipes
             .next_ingredients()
