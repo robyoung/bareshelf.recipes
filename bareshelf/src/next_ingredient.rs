@@ -95,8 +95,7 @@ impl SegmentCollector for NextIngredientSegmentCollector {
 
     fn harvest(self) -> Self::Fruit {
         let facet_dict = self.reader.facet_dict();
-        self
-            .counts
+        self.counts
             .iter()
             .filter(|(_, count)| **count > 0)
             .map(|(ord, count)| {

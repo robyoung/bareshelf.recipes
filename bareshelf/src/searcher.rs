@@ -102,17 +102,27 @@ impl Searcher {
     }
 
     fn recipes_query(&self, query: &RecipeQuery, ingredient_slug_field: Field) -> BooleanQuery {
+        let key_ingredient_query: Vec<(Occur, Box<dyn Query>)> = if query.key_ingredients.is_empty()
+        {
+            vec![]
+        } else {
+            vec![(
+                Occur::Must,
+                Box::new(BooleanQuery::from(
+                    query
+                        .key_ingredients
+                        .iter()
+                        .map(slug_to_query(ingredient_slug_field, Occur::Should))
+                        .collect::<Vec<_>>(),
+                )),
+            )]
+        };
         BooleanQuery::from(
             query
                 .shelf_ingredients
                 .iter()
                 .map(slug_to_query(ingredient_slug_field, Occur::Should))
-                .chain(
-                    query
-                        .key_ingredients
-                        .iter()
-                        .map(slug_to_query(ingredient_slug_field, Occur::Must)),
-                )
+                .chain(key_ingredient_query.into_iter())
                 .chain(
                     query
                         .banned_ingredients
@@ -472,4 +482,86 @@ fn calculate_score(
     let tweak = 1.0 / 4_f32.powi(missing_ingredients as i32);
 
     original_score * tweak
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{IngredientQuery, RecipeQuery, Searcher};
+    use crate::tests::{setup_ingredients_index, setup_recipes_index};
+
+    #[test]
+    fn tweak_score_with_facets() {
+        let (recipes_index, ingredients_index) = setup_recipes_index();
+
+        let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
+
+        let query = RecipeQuery::default()
+            .shelf_ingredients(&[
+                "egg".to_string(),
+                "oil".to_string(),
+                "garlic".to_string(),
+                "mushroom".to_string(),
+            ])
+            .limit(2);
+
+        let results = searcher.recipes(query).unwrap();
+
+        assert_eq!(
+            results
+                .all()
+                .iter()
+                .map(|r| r.recipe.title.to_owned())
+                .collect::<Vec<String>>(),
+            vec!["Fried egg", "Egg rolls"]
+        );
+    }
+
+    #[test]
+    fn one_of_key_ingredients_must_appear() {
+        let (recipes_index, ingredients_index) = setup_recipes_index();
+
+        let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
+
+        let query = RecipeQuery::default()
+            .shelf_ingredients(&["egg".to_string()])
+            .key_ingredients(&["milk".to_string(), "garlic".to_string()]);
+
+        let results = searcher.recipes(query).unwrap();
+
+        assert_eq!(results.all().len(), 2);
+    }
+
+    #[test]
+    fn ingredients_by_name() {
+        let (recipes_index, ingredients_index) = setup_ingredients_index();
+
+        let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
+        let query = IngredientQuery::by_name("Sugar");
+        let ingredients = searcher.ingredients(query).unwrap();
+
+        assert_eq!(ingredients[0].name, "Sugar");
+        assert_eq!(ingredients.len(), 1);
+    }
+
+    #[test]
+    fn ingredients_by_prefix() {
+        let (recipes_index, ingredients_index) = setup_ingredients_index();
+
+        let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
+        let query = IngredientQuery::by_prefix("brown su");
+        let ingredients = searcher.ingredients(query).unwrap();
+
+        assert_eq!(ingredients[0].name, "Brown sugar");
+    }
+
+    #[test]
+    fn ingredients_by_prefix_butter() {
+        let (recipes_index, ingredients_index) = setup_ingredients_index();
+
+        let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
+        let query = IngredientQuery::by_prefix("butt");
+        let ingredients = searcher.ingredients(query).unwrap();
+
+        assert_eq!(ingredients[0].name, "Butter");
+    }
 }

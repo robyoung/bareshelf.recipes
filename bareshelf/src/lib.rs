@@ -4,8 +4,8 @@ use tantivy::schema::{STORED, STRING, TEXT};
 mod datatypes;
 mod error;
 mod indexer;
-mod searcher;
 mod next_ingredient;
+mod searcher;
 
 pub use crate::{
     datatypes::{Ingredient, IngredientSlug, Recipe},
@@ -61,8 +61,31 @@ fn ingredients_schema() -> tantivy::schema::Schema {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+
+    pub(crate) fn setup_recipes_index() -> (tantivy::Index, tantivy::Index) {
+        let (recipes_index, ingredients_index) = create_indexes();
+
+        index_recipes(&recipes_index, &ingredients_index);
+
+        (recipes_index, ingredients_index)
+    }
+
+    pub(crate) fn setup_ingredients_index() -> (tantivy::Index, tantivy::Index) {
+        let (recipes_index, ingredients_index) = create_indexes();
+
+        index_ingredients(&recipes_index, &ingredients_index);
+
+        (recipes_index, ingredients_index)
+    }
+
+    pub(crate) fn create_indexes() -> (tantivy::Index, tantivy::Index) {
+        (
+            tantivy::Index::create_in_ram(recipes_schema()),
+            tantivy::Index::create_in_ram(ingredients_schema()),
+        )
+    }
 
     fn index_recipes(recipes_index: &tantivy::Index, ingredients_index: &tantivy::Index) {
         let mut indexer = Indexer::new(&recipes_index, &ingredients_index).unwrap();
@@ -109,76 +132,5 @@ mod tests {
         indexer.add_ingredient(Ingredient::new("Butter beans", "butter-beans"));
         indexer.add_ingredient(Ingredient::new("Brown sugar", "brown-sugar"));
         indexer.commit().unwrap();
-    }
-
-    #[test]
-    fn tweak_score_with_facets() {
-        let recipes_index = tantivy::Index::create_in_ram(recipes_schema());
-        let ingredients_index = tantivy::Index::create_in_ram(ingredients_schema());
-        index_recipes(&recipes_index, &ingredients_index);
-
-        let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
-
-        let query = RecipeQuery::default()
-            .shelf_ingredients(&[
-                "egg".to_string(),
-                "oil".to_string(),
-                "garlic".to_string(),
-                "mushroom".to_string(),
-            ])
-            .limit(2);
-
-        let results = searcher
-            .recipes(query)
-            .unwrap();
-
-        assert_eq!(
-            results
-                .all()
-                .iter()
-                .map(|r| r.recipe.title.to_owned())
-                .collect::<Vec<String>>(),
-            vec!["Fried egg", "Egg rolls"]
-        );
-    }
-
-    #[test]
-    fn ingredients_by_name() {
-        let recipes_index = tantivy::Index::create_in_ram(recipes_schema());
-        let ingredients_index = tantivy::Index::create_in_ram(ingredients_schema());
-        index_ingredients(&recipes_index, &ingredients_index);
-
-        let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
-        let query = IngredientQuery::by_name("Sugar");
-        let ingredients = searcher.ingredients(query).unwrap();
-
-        assert_eq!(ingredients[0].name, "Sugar");
-        assert_eq!(ingredients.len(), 1);
-    }
-
-    #[test]
-    fn ingredients_by_prefix() {
-        let recipes_index = tantivy::Index::create_in_ram(recipes_schema());
-        let ingredients_index = tantivy::Index::create_in_ram(ingredients_schema());
-        index_ingredients(&recipes_index, &ingredients_index);
-
-        let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
-        let query = IngredientQuery::by_prefix("brown su");
-        let ingredients = searcher.ingredients(query).unwrap();
-
-        assert_eq!(ingredients[0].name, "Brown sugar");
-    }
-
-    #[test]
-    fn ingredients_by_prefix_butter() {
-        let recipes_index = tantivy::Index::create_in_ram(recipes_schema());
-        let ingredients_index = tantivy::Index::create_in_ram(ingredients_schema());
-        index_ingredients(&recipes_index, &ingredients_index);
-
-        let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
-        let query = IngredientQuery::by_prefix("butt");
-        let ingredients = searcher.ingredients(query).unwrap();
-
-        assert_eq!(ingredients[0].name, "Butter");
     }
 }
