@@ -7,13 +7,21 @@ build-indexer:
 	cargo build -p bareshelf_indexer --release
 	cp ./target/release/libbareshelf_indexer.so ./admin/bareshelf_admin/bareshelf_indexer.so
 
+crawl-ingredients:
+	dc exec admin scrapy crawl bbc-ingredients
+
+crawl-recipes:
+	dc exec admin scrapy crawl bbc-recipes
+
+crawl-all: crawl-ingredients crawl-recipes
+
 run-indexer: build-indexer
 	sudo chmod -R 777 search-index
 	dc exec admin flask index
 	sudo chown -R robyoung:robyoung search-index
 
 build-web:
-	pushd bareshelf_web && cargo build --features embedded-templates ---release --target-dir ../target
+	cd bareshelf_web && cargo build --features embedded-templates ---release --target-dir ../target
 
 deploy-web:
 	scp target/release/bareshelf_web $(WEB_DEPLOY_TARGET):
