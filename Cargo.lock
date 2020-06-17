@@ -458,9 +458,9 @@ checksum = "b41b7ea54a0c9d92199de89e20e58d49f02f8e699814ef3fdf266f6f748d15c7"
 
 [[package]]
 name = "base64"
-version = "0.12.0"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d5ca2cd0adc3f48f9e9ea5a6bbdf9ccc0bfade884847e484d452414c7ccffb3"
+checksum = "e223af0dc48c96d4f8342ec01a4974f139df863896b316681efd36742f22cc67"
 
 [[package]]
 name = "bitflags"
@@ -2353,7 +2353,7 @@ version = "0.12.0"
 source = "git+https://github.com/robyoung/tantivy?branch=make-tweak-score-mutable-rebased#b42289128a60741a1e58ae0473705c1a7020d364"
 dependencies = [
  "atomicwrites",
- "base64 0.12.0",
+ "base64 0.12.2",
  "bitpacking",
  "byteorder",
  "census",
