@@ -36,7 +36,9 @@ class SQLAlchemyPipeline:
         if model == Recipe:
             return self.recipe_model(model, instance, item)
         else:
-            return self.basic_model(model, instance, item)
+            return self.basic_model(
+                model, instance, {k: v for k, v in item.items() if k not in {"images"}}
+            )
 
     def basic_model(
         self, model: Any, instance: Optional[Any], item: Mapping[str, Any]

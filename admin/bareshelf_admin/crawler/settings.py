@@ -71,10 +71,10 @@ ITEM_PIPELINES = {
 
 IMAGES_STORE = "/var/lib/bareshelf/data/images"
 
-IMAGES_THUMBS = {
-    "small": (50, 50),
-    "medium": (270, 270),
-}
+# IMAGES_THUMBS = {
+#     "small": (50, 50),
+#     "medium": (270, 270),
+# }
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
 AUTOTHROTTLE_ENABLED = True
