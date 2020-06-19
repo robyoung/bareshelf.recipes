@@ -3,10 +3,6 @@ test:
 	cd bareshelf_web && cargo test
 	cd bareshelf_indexer && cargo test --no-default-features
 
-build-indexer:
-	cargo build -p bareshelf_indexer --release
-	cp ./target/release/libbareshelf_indexer.so ./admin/bareshelf_admin/bareshelf_indexer.so
-
 crawl-ingredients:
 	dc exec admin scrapy crawl bbc-ingredients
 
@@ -15,6 +11,10 @@ crawl-recipes:
 
 crawl-all: crawl-ingredients crawl-recipes
 
+build-indexer:
+	cargo build -p bareshelf_indexer --release
+	cp ./target/release/libbareshelf_indexer.so ./admin/bareshelf_admin/bareshelf_indexer.so
+
 run-indexer: build-indexer
 	sudo chmod -R 777 search-index
 	dc exec admin flask index
@@ -22,6 +22,9 @@ run-indexer: build-indexer
 
 build-web:
 	cd bareshelf_web && cargo build --features embedded-templates ---release --target-dir ../target
+
+run-web:
+	cargo run -p bareshelf_web
 
 deploy-web:
 	scp target/release/bareshelf_web $(WEB_DEPLOY_TARGET):
