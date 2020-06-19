@@ -3,9 +3,9 @@ use std::cmp;
 use actix_session::Session;
 use actix_web::{error, web, Error, HttpRequest, HttpResponse, Responder};
 use bareshelf::{IngredientQuery, RecipeQuery};
+use rand::seq::SliceRandom;
 use serde::Deserialize;
 use serde_json::json;
-use rand::seq::SliceRandom;
 
 use crate::{
     flash::{FlashMessage, FlashResponse},
@@ -137,16 +137,25 @@ pub(crate) async fn ui3(
             .map(RecipeSearchResult::from)
             .collect::<Vec<_>>();
 
-        let mut rng = rand::thread_rng();
-
-        can_make_now.shuffle(&mut rng);
-
         let mut one_missing = recipes
             .one_missing()
             .map(RecipeSearchResult::from)
             .collect::<Vec<_>>();
 
+        let mut more_missing = recipes
+            .more_missing()
+            .map(RecipeSearchResult::from)
+            .collect::<Vec<_>>();
+
+        let mut rng = rand::thread_rng();
+
+        can_make_now.shuffle(&mut rng);
         one_missing.shuffle(&mut rng);
+        more_missing.shuffle(&mut rng);
+
+        ctx.insert("can_make_now", &can_make_now);
+        ctx.insert("one_missing", &one_missing);
+        ctx.insert("more_missing", &more_missing);
 
         let mut next_ingredients: Vec<(String, usize)> = recipes
             .next_ingredients()
@@ -154,12 +163,14 @@ pub(crate) async fn ui3(
             .map(|(slug, count)| (slug.into(), *count))
             .collect();
 
-        next_ingredients.sort_by_key(|(_, count)| *count);
-        next_ingredients.reverse();
-
-        ctx.insert("can_make_now", &can_make_now);
-        ctx.insert("one_missing", &one_missing);
-        ctx.insert("next_ingredients", &next_ingredients[..cmp::min(20, next_ingredients.len() - 1)]);
+        if next_ingredients.len() > 0 {
+            next_ingredients.sort_by_key(|(_, count)| *count);
+            next_ingredients.reverse();
+            ctx.insert(
+                "next_ingredients",
+                &next_ingredients[..cmp::min(20, next_ingredients.len())],
+            );
+        }
     }
 
     render(tera, "ui3.html", Some(&ctx))
@@ -167,6 +178,7 @@ pub(crate) async fn ui3(
 
 pub(crate) async fn ingredients(
     tera: web::Data<tera::Tera>,
+    searcher: web::Data<bareshelf::Searcher>,
     shelf: Shelf,
     flash: FlashMessage,
 ) -> Result<HttpResponse, Error> {
@@ -178,6 +190,16 @@ pub(crate) async fn ingredients(
     ctx.insert("key_ingredients", &key_ingredients);
     let banned_ingredients = shelf.get_ingredients(&shelf::Bucket::BannedIngredients)?;
     ctx.insert("banned_ingredients", &banned_ingredients);
+    let popular_ingredients = searcher
+        .popular_ingredients(
+            RecipeQuery::default()
+                .shelf_ingredients(&ingredient_slugs(&ingredients))
+                .key_ingredients(&ingredient_slugs(&key_ingredients))
+                .banned_ingredients(&ingredient_slugs(&banned_ingredients))
+                .limit(50),
+        )
+        .map_err(|_| error::ErrorInternalServerError("failed to execute query"))?;
+    ctx.insert("popular_ingredients", &popular_ingredients);
 
     ctx.insert("flash", &flash.take());
 

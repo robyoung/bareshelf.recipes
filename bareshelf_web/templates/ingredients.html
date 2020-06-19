@@ -69,6 +69,37 @@
     }}
 
   </div>
+
+  <div class="col s12 m4 l4 xl3">
+    <ul id=popular_ingredients>
+      <li><a class=quicklink href="#ingredients">go to ingredients</a></li>
+      <li><a class=quicklink href="#key_ingredients">go to key ingredients</a></li>
+    </ul>
+    <div class=card>
+      <div class=card-content>
+        <ul class="collection">
+          {% for ingredient in popular_ingredients %}
+            <li class=collection-item>
+              {{ ingredient.0.name }} ({{ ingredient.1 }})
+              <form action=/add-ingredient method=post>
+                <input type=hidden name=ingredient value={{ingredient.0.slug}}>
+                <input type=hidden name=redirect value=/ingredients>
+
+                <button class="btn-floating btn-small waves-effect right" type=submit name=bucket value=ingredients>
+                  <i class="material-icons">add</i>
+                </button>
+                <!--
+                <button class="btn-floating btn-small waves-effect right" type=submit name=bucket value=banned_ingredients>
+                  <i class="material-icons">block</i>
+                </button>
+                -->
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock content %}
 

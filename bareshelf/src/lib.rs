@@ -80,6 +80,15 @@ pub(crate) mod tests {
         (recipes_index, ingredients_index)
     }
 
+    pub(crate) fn setup_indexes() -> (tantivy::Index, tantivy::Index) {
+        let (recipes_index, ingredients_index) = create_indexes();
+
+        index_recipes(&recipes_index, &ingredients_index);
+        index_ingredients(&recipes_index, &ingredients_index);
+
+        (recipes_index, ingredients_index)
+    }
+
     pub(crate) fn create_indexes() -> (tantivy::Index, tantivy::Index) {
         (
             tantivy::Index::create_in_ram(recipes_schema()),
@@ -131,6 +140,12 @@ pub(crate) mod tests {
         indexer.add_ingredient(Ingredient::new("Butter", "butter"));
         indexer.add_ingredient(Ingredient::new("Butter beans", "butter-beans"));
         indexer.add_ingredient(Ingredient::new("Brown sugar", "brown-sugar"));
+        indexer.add_ingredient(Ingredient::new("Garlic", "garlic"));
+        indexer.add_ingredient(Ingredient::new("Milk", "milk"));
+        indexer.add_ingredient(Ingredient::new("Salt", "salt"));
+        indexer.add_ingredient(Ingredient::new("Oil", "oil"));
+        indexer.add_ingredient(Ingredient::new("Tortilla wrap", "tortilla-wrap"));
+        indexer.add_ingredient(Ingredient::new("Mushroom", "mushroom"));
         indexer.commit().unwrap();
     }
 }

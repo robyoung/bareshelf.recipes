@@ -3,6 +3,7 @@ use std::{
     collections::{HashMap, HashSet},
 };
 
+use log::error;
 use tantivy::{
     collector::{Collector, FacetCollector, TopDocs},
     fastfield::FacetReader,
@@ -51,6 +52,63 @@ impl Searcher {
         Ok(facet_counts
             .get("/ingredient")
             .map(|(facet, count)| (facet.to_path()[1].to_owned(), count))
+            .collect())
+    }
+
+    /// Popular ingredients that the user does not already have
+    pub fn popular_ingredients(&self, query: RecipeQuery) -> Result<Vec<(Ingredient, u64)>> {
+        // query for all ingredients
+        let searcher = self.recipes_reader.searcher();
+        let mut facet_collector =
+            FacetCollector::for_field(self.recipes_schema.get_field("ingredient_slug").unwrap());
+        facet_collector.add_facet("/ingredient");
+        let facet_counts = searcher.search(&AllQuery, &facet_collector)?;
+
+        // HashSet of all ingredients in the RecipeQuery
+        let query_ingredients = query
+            .shelf_ingredients
+            .into_iter()
+            .chain(query.key_ingredients.into_iter())
+            .chain(query.banned_ingredients.into_iter())
+            .collect::<HashSet<IngredientSlug>>();
+
+        // get facet counts for all ingredients on in the RecipeQuery
+        let mut result: Vec<(IngredientSlug, u64)> = facet_counts
+            .get("/ingredient")
+            .map(|(facet, count)| (IngredientSlug::from(facet), count))
+            .filter(|(facet, _)| !query_ingredients.contains(facet))
+            .collect();
+
+        result.sort_unstable_by_key(|(_, count)| std::cmp::Reverse(*count));
+
+        // only grab the top N
+        let results = result.into_iter().take(query.limit).collect::<Vec<_>>();
+
+        // then query for the full Ingredient items
+        let ingredients = self.ingredients(
+            IngredientQuery::by_slugs(
+                &results
+                    .iter()
+                    .cloned()
+                    .map(|(slug, _)| slug)
+                    .collect::<Vec<_>>(),
+            )
+            .with_limit(query.limit),
+        )?;
+
+        let mut ingredients = ingredients
+            .into_iter()
+            .map(|ingredient| (IngredientSlug::from(ingredient.slug.clone()), ingredient))
+            .collect::<HashMap<_, _>>();
+
+        Ok(results
+            .into_iter()
+            .map(|(slug, count)| {
+                if !ingredients.contains_key(&slug) {
+                    error!("could not find {:?}", slug);
+                }
+                (ingredients.remove(&slug).unwrap(), count)
+            })
             .collect())
     }
 
@@ -171,8 +229,10 @@ impl Searcher {
 
     pub fn ingredients(&self, query: IngredientQuery) -> Result<Vec<Ingredient>> {
         let searcher = self.ingredients_reader.searcher();
-        let top_docs =
-            searcher.search(&self.ingredients_query(&query), &TopDocs::with_limit(20))?;
+        let top_docs = searcher.search(
+            &self.ingredients_query(&query),
+            &TopDocs::with_limit(query.limit.unwrap_or(20)),
+        )?;
         let top_docs = self
             .load_ingredients(&searcher, top_docs)
             .into_iter()
@@ -184,6 +244,7 @@ impl Searcher {
 
     fn ingredients_query(&self, query: &IngredientQuery) -> Box<dyn Query> {
         let name_field = self.ingredients_schema.get_field("name").unwrap();
+        let slug_field = self.ingredients_schema.get_field("slug").unwrap();
 
         match &query.by {
             IngredientQueryBy::Prefix(prefix) => {
@@ -213,6 +274,19 @@ impl Searcher {
                     .parse_query(&name)
                     .unwrap(),
             ),
+            IngredientQueryBy::Slugs(slugs) => {
+                let term_queries: Vec<(Occur, Box<dyn Query>)> = slugs
+                    .iter()
+                    .map(|slug| {
+                        let term_query: Box<dyn Query> = Box::new(TermQuery::new(
+                            Term::from_field_text(slug_field, slug.inner()),
+                            IndexRecordOption::Basic,
+                        ));
+                        (Occur::Should, term_query)
+                    })
+                    .collect();
+                Box::new(BooleanQuery::from(term_queries))
+            }
             IngredientQueryBy::All => Box::new(AllQuery),
         }
     }
@@ -349,18 +423,20 @@ fn slug_to_query(
     }
 }
 
-pub struct IngredientQuery {
-    by: IngredientQueryBy,
+pub struct IngredientQuery<'a> {
+    by: IngredientQueryBy<'a>,
     excluding: Option<HashSet<Ingredient>>,
+    limit: Option<usize>,
 }
 
-enum IngredientQueryBy {
+enum IngredientQueryBy<'a> {
     Prefix(String),
     Name(String),
+    Slugs(&'a [IngredientSlug]),
     All,
 }
 
-impl IngredientQuery {
+impl<'a> IngredientQuery<'a> {
     pub fn by_prefix(prefix: &str) -> Self {
         Self::by(IngredientQueryBy::Prefix(prefix.to_string()))
     }
@@ -369,15 +445,25 @@ impl IngredientQuery {
         Self::by(IngredientQueryBy::Name(name.to_string()))
     }
 
+    pub fn by_slugs(slugs: &'a [IngredientSlug]) -> Self {
+        Self::by(IngredientQueryBy::Slugs(slugs))
+    }
+
     pub fn all() -> Self {
         Self::by(IngredientQueryBy::All)
     }
 
-    fn by(by: IngredientQueryBy) -> Self {
+    fn by(by: IngredientQueryBy<'a>) -> Self {
         Self {
             by,
             excluding: Default::default(),
+            limit: Default::default(),
         }
+    }
+
+    pub fn with_limit(mut self, limit: usize) -> Self {
+        self.limit = Some(limit);
+        self
     }
 
     pub fn excluding(mut self, excluding: &[Ingredient]) -> Self {
@@ -447,6 +533,12 @@ impl RecipeSearchResults {
             .filter(|recipe| recipe.missing_ingredients.len() == 1)
     }
 
+    pub fn more_missing(&self) -> impl Iterator<Item = &RecipeSearchResult> {
+        self.recipes.iter().filter(|recipe| {
+            recipe.missing_ingredients.len() > 1 && recipe.missing_ingredients.len() < 6
+        })
+    }
+
     pub fn next_ingredients(&self) -> &HashMap<IngredientSlug, usize> {
         &self.next_ingredients
     }
@@ -486,8 +578,64 @@ fn calculate_score(
 
 #[cfg(test)]
 mod tests {
-    use super::{IngredientQuery, RecipeQuery, Searcher};
-    use crate::tests::{setup_ingredients_index, setup_recipes_index};
+    use super::{Ingredient, IngredientQuery, RecipeQuery, Searcher};
+    use crate::tests::{setup_indexes, setup_ingredients_index, setup_recipes_index};
+
+    #[derive(Default, Debug)]
+    struct IngredientMatcher {
+        name: Option<String>,
+        slug: Option<String>,
+    }
+
+    impl PartialEq<Ingredient> for IngredientMatcher {
+        fn eq(&self, other: &Ingredient) -> bool {
+            if let Some(name) = &self.name {
+                if name != &other.name {
+                    return false;
+                }
+            }
+
+            if let Some(slug) = &self.slug {
+                if slug != &other.slug {
+                    return false;
+                }
+            }
+            true
+        }
+    }
+
+    #[test]
+    fn popular_ingredients() {
+        let (recipes_index, ingredients_index) = setup_indexes();
+        let searcher = Searcher::new(&recipes_index, &ingredients_index).unwrap();
+
+        let query = RecipeQuery::default()
+            .shelf_ingredients(&["milk".to_string()])
+            .banned_ingredients(&["mushroom".to_string()])
+            .limit(2);
+
+        let result = searcher.popular_ingredients(query).unwrap();
+
+        println!("{:?}", result);
+
+        assert_eq!(
+            IngredientMatcher {
+                slug: Some(String::from("egg")),
+                ..Default::default()
+            },
+            result[0].0,
+        );
+        assert_eq!(
+            IngredientMatcher {
+                slug: Some(String::from("oil")),
+                ..Default::default()
+            },
+            result[1].0,
+        );
+
+        assert_eq!(3, result[0].1);
+        assert_eq!(2, result[1].1);
+    }
 
     #[test]
     fn tweak_score_with_facets() {

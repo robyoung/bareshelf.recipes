@@ -100,6 +100,12 @@ impl Ord for Ingredient {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct IngredientSlug(String);
 
+impl IngredientSlug {
+    pub fn inner(&self) -> &str {
+        &self.0
+    }
+}
+
 impl std::fmt::Display for IngredientSlug {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)

@@ -6,6 +6,7 @@
     <div class="col s12">
       <div class="card">
         <div class="card-content recipe-ingredients">
+          {% if next_ingredients %}
           <div class=card-title>
             Ingredients that will open you up to new recipes
           </div>
@@ -14,6 +15,11 @@
             <li>{{ item.0 }} ({{item.1}})</li>
           {% endfor %}
           </ol>
+          {% else %}
+          <div class=card-title>
+            There are no single ingredients that will open you up to new recipes.
+          </div>
+        {% endif %}
         </div>
       </div>
     </div>
@@ -22,6 +28,7 @@
   <div id=can_make_now class="col s12 l6">
     <h3>Recipes you can make right now</h3>
     <a class=quicklink href="#one_missing">go to one missing</a>
+    <a class=quicklink href="#more_missing">go to more missing</a>
     {% if can_make_now %}
     {% for recipe in can_make_now %}
       {{ macros::recipe(recipe=recipe, redirect="/ui3") }}
@@ -32,11 +39,21 @@
   <div id=one_missing class="col s12 l6">
     <h3>Recipes with one ingredient missing</h3>
     <a class=quicklink href="#can_make_now">go to can make now</a>
+    <a class=quicklink href="#more_missing">go to more missing</a>
     {% if one_missing %}
     {% for recipe in one_missing %}
       {{ macros::recipe(recipe=recipe, redirect="/ui3") }}
     {% endfor %}
     {% endif %}
+  </div>
+
+  <div id=more_missing class="col s12 l6">
+    <h3>Recipes with more than one ingredient missing</h3>
+    <a class=quicklink href="#can_make_now">go to can make now</a>
+    <a class=quicklink href="#one_missing">go to one missing</a>
+    {% for recipe in more_missing %}
+      {{ macros::recipe(recipe=recipe, redirect="/ui3") }}
+    {% endfor %}
   </div>
   </div>
 {% endblock content %}
