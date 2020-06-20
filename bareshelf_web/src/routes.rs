@@ -57,50 +57,6 @@ pub(crate) async fn index(
     render(tera, "index.html", Some(&ctx))
 }
 
-/// Alternative UI 2
-///
-/// This UI allows the user to manage ingredients in their shelf but also to
-/// add key ingredients and banned ingredients. Key ingredients must appear in
-/// all the recipes. This is useful if you want to know what you can make with
-/// a specific ingredient. Banned ingredients must not appear in any of the recipes.
-/// This is useful for dietry constraints such as vegetarian.
-pub(crate) async fn ui2(
-    tera: web::Data<tera::Tera>,
-    searcher: web::Data<bareshelf::Searcher>,
-    shelf: Shelf,
-    flash: FlashMessage,
-) -> Result<HttpResponse, Error> {
-    let mut ctx = tera::Context::new();
-
-    let ingredients = shelf.get_ingredients(&shelf::Bucket::Ingredients)?;
-    ctx.insert("ingredients", &ingredients);
-    let key_ingredients = shelf.get_ingredients(&shelf::Bucket::KeyIngredients)?;
-    ctx.insert("key_ingredients", &key_ingredients);
-    let banned_ingredients = shelf.get_ingredients(&shelf::Bucket::BannedIngredients)?;
-    ctx.insert("banned_ingredients", &banned_ingredients);
-
-    ctx.insert("flash", &flash.take());
-
-    if !ingredients.is_empty() {
-        let query = RecipeQuery::default()
-            .shelf_ingredients(&ingredient_slugs(&ingredients))
-            .key_ingredients(&ingredient_slugs(&key_ingredients))
-            .banned_ingredients(&ingredient_slugs(&banned_ingredients));
-
-        let recipes = searcher
-            .recipes(query)
-            .map_err(|_| error::ErrorInternalServerError("failed to search"))?
-            .all()
-            .into_iter()
-            .map(RecipeSearchResult::from)
-            .collect::<Vec<_>>();
-
-        ctx.insert("recipes", &recipes);
-    }
-
-    render(tera, "ui2.html", Some(&ctx))
-}
-
 /// Alternative UI 3
 ///
 /// This UI separates ingredients management from recipe listing.
