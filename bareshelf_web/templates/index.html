@@ -2,6 +2,32 @@
 {% import "macros.html" as macros %}
 
 {% block content %}
+<div class="row notice-banner">
+  <div class="col s12">
+    <div class=card>
+      <div class="card-content yellow">
+        <p>
+          This site is a work in progress.
+          There is a lot that is broken and incomplete.
+          If you have any comments please <a href="https://forms.gle/XGUidZp3G5vjVv8KA">submit your feedback</a>.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+{% if flash %}
+<div class=row>
+  <div class="col s12">
+    <div class="card">
+      <div class="card-content yellow lighten-3">
+        <span class=card-title>{{ flash }}</span>
+      </div>
+  </div>
+</div>
+{% endif %}
+
   <div class=row>
     <div class="col s12">
       <div class="card">
