@@ -80,12 +80,12 @@
         <ul class="collection">
           {% for ingredient in popular_ingredients %}
             <li class=collection-item>
-              {{ ingredient.0.name }} ({{ ingredient.1 }})
               <form action=/add-ingredient method=post>
                 <input type=hidden name=ingredient value={{ingredient.0.slug}}>
                 <input type=hidden name=redirect value=/ingredients>
+                {{ ingredient.0.name }} ({{ ingredient.1 }})
 
-                <button class="btn-floating btn-small waves-effect right" type=submit name=bucket value=ingredients>
+                <button style="margin-top: -5px" class="btn-floating btn-small waves-effect right" type=submit name=bucket value=ingredients>
                   <i class="material-icons">add</i>
                 </button>
                 <!--
