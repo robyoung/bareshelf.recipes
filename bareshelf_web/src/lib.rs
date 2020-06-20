@@ -15,7 +15,6 @@ mod views;
 fn templates() -> TeraResult<Tera> {
     let templates = vec![
         ("index.html", include_str!("../templates/index.html")),
-        ("ui3.html", include_str!("../templates/ui3.html")),
         (
             "ingredients.html",
             include_str!("../templates/ingredients.html"),
@@ -85,7 +84,6 @@ pub async fn run_server() -> std::io::Result<()> {
             .service(
                 web::scope("/")
                     .route("", web::get().to(routes::index))
-                    .route("/ui3", web::get().to(routes::ui3))
                     .route("/ingredients", web::get().to(routes::ingredients))
                     .route("/add-ingredient", web::post().to(routes::add_ingredient))
                     .route("/remove-ingredient", web::post().to(routes::remove_ingredient))

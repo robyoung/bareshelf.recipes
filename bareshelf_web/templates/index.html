@@ -2,98 +2,58 @@
 {% import "macros.html" as macros %}
 
 {% block content %}
-
-<div class="row notice-banner">
-  <div class="col s12">
-    <div class=card>
-      <div class="card-content yellow">
-        <p>
-          This site is a work in progress.
-          There is a lot that is broken and incomplete.
-          If you have any comments please <a href="https://forms.gle/XGUidZp3G5vjVv8KA">submit your feedback</a>.
-        </p>
+  <div class=row>
+    <div class="col s12">
+      <div class="card">
+        <div class="card-content recipe-ingredients">
+          {% if next_ingredients %}
+          <div class=card-title>
+            Ingredients that will open you up to new recipes
+          </div>
+          <ol>
+          {% for item in next_ingredients %}
+            <li>{{ item.0 }} ({{item.1}})</li>
+          {% endfor %}
+          </ol>
+          {% else %}
+          <div class=card-title>
+            There are no single ingredients that will open you up to new recipes.
+          </div>
+        {% endif %}
+        </div>
       </div>
     </div>
   </div>
-</div>
-
-
-{% if flash %}
-<div class=row>
-  <div class="col s12">
-    <div class="card">
-      <div class="card-content yellow lighten-3">
-        <span class=card-title>{{ flash }}</span>
-      </div>
-  </div>
-</div>
-{% endif %}
-
-<div class="row">
-  <div id=ingredients class="col s12 m4 l4 xl3">
-    <h3>Ingredients</h3>
-    <a class=quicklink href="#recipes">go to recipes</a>
-
-    {{
-      macros::ingredients_bucket(
-        ingredients=ingredients,
-        title="Ingredient",
-        info="Add ingredients that you already have here",
-        bucket="ingredients",
-        redirect="/"
-      )
-    }}
-
-  </div>
-
-  <div id=recipes class="col s12 m8 l8 xl9">
-    <h3>Recipes</h3>
-    <a class=quicklink href="#ingredients">go to ingredients</a>
-    {% if recipes %}
-    {% for recipe in recipes %}
+  <div class=row>
+  <div id=can_make_now class="col s12 l6">
+    <h3>Recipes you can make right now</h3>
+    <a class=quicklink href="#one_missing">go to one missing</a>
+    <a class=quicklink href="#more_missing">go to more missing</a>
+    {% if can_make_now %}
+    {% for recipe in can_make_now %}
       {{ macros::recipe(recipe=recipe, redirect="/") }}
     {% endfor %}
     {% endif %}
   </div>
-</div>
-{% endblock content %}
 
-{% block javascript %}
-<script type=text/javascript>
-  $(document).ready(function() {
-    $('input.autocomplete').each(function() {
-      let self = this;
-      $(this).autocomplete({
-        minLength: 2,
-        onAutocomplete: function() {
-          self.closest("form").submit();
-        }
-      });
-      $(this).keyup(function () {
-        if ($(self).val().length > 2) {
-          $.ajax({
-              url: '/api/ingredients',
-              type: 'get',
-              cache: false,
-              data: {
-                "term": $(self).val(),
-                "bucket": $(self).closest("form").find("input[name='bucket']").val(),
-              },
-              success: function (data) {
-                  let updateData = {};
-                  data.forEach(function(val) {
-                    updateData[val.name] = null;
-                  });
-                  $(self).autocomplete("updateData", updateData);
-                  $(self).autocomplete("open");
-              },
-              error: function (err) {
-                  console.log(err);
-              }
-          });
-        }
-      });
-    });
-  });
-</script>
-{% endblock javascript %}
+  <div id=one_missing class="col s12 l6">
+    <h3>Recipes with one ingredient missing</h3>
+    <a class=quicklink href="#can_make_now">go to can make now</a>
+    <a class=quicklink href="#more_missing">go to more missing</a>
+    {% if one_missing %}
+    {% for recipe in one_missing %}
+      {{ macros::recipe(recipe=recipe, redirect="/") }}
+    {% endfor %}
+    {% endif %}
+  </div>
+
+  <div id=more_missing class="col s12 l6">
+    <h3>Recipes with more than one ingredient missing</h3>
+    <a class=quicklink href="#can_make_now">go to can make now</a>
+    <a class=quicklink href="#one_missing">go to one missing</a>
+    {% for recipe in more_missing %}
+      {{ macros::recipe(recipe=recipe, redirect="/") }}
+    {% endfor %}
+  </div>
+  </div>
+{% endblock content %}

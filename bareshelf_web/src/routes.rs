@@ -20,49 +20,12 @@ pub(crate) async fn status() -> impl Responder {
     HttpResponse::Ok().json(json!({"status": "ok"}))
 }
 
-/// Default recipe UI
-///
-/// This UI allows the user to add ingredients to their shelf and see a list
-/// of recipes sorted by score. Recipes they can make right now will usually
-/// come first and then recipes with a small number of missing ingredients.
-pub(crate) async fn index(
-    tera: web::Data<tera::Tera>,
-    searcher: web::Data<bareshelf::Searcher>,
-    shelf: Shelf,
-    flash: FlashMessage,
-) -> Result<HttpResponse, Error> {
-    let ingredients = shelf.get_ingredients(&shelf::Bucket::Ingredients)?;
-    let mut ctx = tera::Context::new();
-    ctx.insert("ingredients", &ingredients);
-    ctx.insert("flash", &flash.take());
-
-    if !ingredients.is_empty() {
-        let query = RecipeQuery::default()
-            .shelf_ingredients(&ingredient_slugs(&ingredients))
-            .limit(100);
-
-        let recipes = searcher
-            .recipes(query)
-            .map_err(|_| error::ErrorInternalServerError("failed to search"))?;
-        ctx.insert(
-            "recipes",
-            &recipes
-                .all()
-                .into_iter()
-                .map(RecipeSearchResult::from)
-                .collect::<Vec<_>>(),
-        );
-    }
-
-    render(tera, "index.html", Some(&ctx))
-}
-
-/// Alternative UI 3
+/// Recipe listing UI
 ///
 /// This UI separates ingredients management from recipe listing.
 /// If the user's shelf is empty they will automatically be directed
 /// towards ingredients management.
-pub(crate) async fn ui3(
+pub(crate) async fn index(
     tera: web::Data<tera::Tera>,
     searcher: web::Data<bareshelf::Searcher>,
     shelf: Shelf,
@@ -129,7 +92,7 @@ pub(crate) async fn ui3(
         }
     }
 
-    render(tera, "ui3.html", Some(&ctx))
+    render(tera, "index.html", Some(&ctx))
 }
 
 pub(crate) async fn ingredients(
