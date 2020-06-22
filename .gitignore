@@ -3,3 +3,5 @@
 **/target/
 /search-index
 /bareshelf_web/sled/
+/data/
+/sled/
