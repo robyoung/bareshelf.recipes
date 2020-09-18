@@ -37,7 +37,12 @@ pub(crate) async fn index(
 
     ctx.insert("flash", &flash.take());
 
-    if !ingredients.is_empty() {
+    if ingredients.is_empty() {
+        let empty: Vec<String> = vec![];
+        ctx.insert("can_make_now", &empty);
+        ctx.insert("one_missing", &empty);
+        ctx.insert("more_missing", &empty);
+    } else {
         let query = RecipeQuery::default()
             .shelf_ingredients(&ingredients)
             .key_ingredients(&ingredient_slugs(
