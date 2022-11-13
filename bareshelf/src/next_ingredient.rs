@@ -12,7 +12,7 @@ use tantivy::{
     collector::{Collector, SegmentCollector},
     fastfield::FacetReader,
     schema::{Facet, Field},
-    DocId, Result, Score, SegmentLocalId, SegmentReader, TantivyError,
+    DocId, Result, Score, SegmentOrdinal, SegmentReader, TantivyError,
 };
 
 pub(crate) struct NextIngredientCollector {
@@ -39,18 +39,22 @@ impl Collector for NextIngredientCollector {
 
     fn for_segment(
         &self,
-        _: SegmentLocalId,
+        _: SegmentOrdinal,
         reader: &SegmentReader,
     ) -> Result<NextIngredientSegmentCollector> {
         let field_name = reader.schema().get_field_name(self.field);
-        let facet_reader = reader.facet_reader(self.field).ok_or_else(|| {
+        let facet_reader = reader.facet_reader(self.field).map_err(|_| {
             TantivyError::SchemaError(format!("Field {:?} is not a facet field.", field_name))
         })?;
         let facet_dict = facet_reader.facet_dict();
         let shelf = self
             .shelf
             .iter()
-            .filter_map(|key| facet_dict.term_ord(key.encoded_str()))
+            .filter_map(|key| {
+                facet_dict
+                    .term_ord(key.encoded_str())
+                    .expect("IO error here implies the index is borked")
+            })
             .collect::<HashSet<_>>();
 
         Ok(NextIngredientSegmentCollector {
@@ -100,7 +104,9 @@ impl SegmentCollector for NextIngredientSegmentCollector {
             .filter(|(_, count)| **count > 0)
             .map(|(ord, count)| {
                 let mut facet = vec![];
-                facet_dict.ord_to_term(*ord, &mut facet);
+                facet_dict
+                    .ord_to_term(*ord, &mut facet)
+                    .expect("IO error here implies the index is borked");
                 (Facet::from_encoded(facet).unwrap(), *count)
             })
             .collect()
@@ -122,31 +128,37 @@ mod tests {
         let mut schema_builder = Schema::builder();
 
         let name = schema_builder.add_text_field("name", TEXT);
-        let ingredient = schema_builder.add_facet_field("ingredient");
+        let ingredient = schema_builder.add_facet_field("ingredient", ());
 
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
         let mut writer = index.writer(30_000__000).unwrap();
 
-        writer.add_document(doc!(
-            name => "Scrambled Egg",
-            ingredient => Facet::from("/ingredient/egg"),
-            ingredient => Facet::from("/ingredient/butter"),
-            ingredient => Facet::from("/ingredient/salt"),
-        ));
-        writer.add_document(doc!(
-            name => "Potato Wedges",
-            ingredient => Facet::from("/ingredient/potato"),
-            ingredient => Facet::from("/ingredient/oil"),
-            ingredient => Facet::from("/ingredient/salt"),
-        ));
-        writer.add_document(doc!(
-            name => "Jam on Toast",
-            ingredient => Facet::from("/ingredient/bread"),
-            ingredient => Facet::from("/ingredient/butter"),
-            ingredient => Facet::from("/ingredient/jam"),
-        ));
+        writer
+            .add_document(doc!(
+                name => "Scrambled Egg",
+                ingredient => Facet::from("/ingredient/egg"),
+                ingredient => Facet::from("/ingredient/butter"),
+                ingredient => Facet::from("/ingredient/salt"),
+            ))
+            .unwrap();
+        writer
+            .add_document(doc!(
+                name => "Potato Wedges",
+                ingredient => Facet::from("/ingredient/potato"),
+                ingredient => Facet::from("/ingredient/oil"),
+                ingredient => Facet::from("/ingredient/salt"),
+            ))
+            .unwrap();
+        writer
+            .add_document(doc!(
+                name => "Jam on Toast",
+                ingredient => Facet::from("/ingredient/bread"),
+                ingredient => Facet::from("/ingredient/butter"),
+                ingredient => Facet::from("/ingredient/jam"),
+            ))
+            .unwrap();
         writer.commit().unwrap();
 
         let reader = index.reader().unwrap();

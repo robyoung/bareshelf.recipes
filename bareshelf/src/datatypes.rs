@@ -30,17 +30,16 @@ impl Recipe {
 
     pub(crate) fn from_doc(schema: &Schema, doc: &Document) -> Option<Self> {
         Some(Self {
-            title: get_first_text(&doc, get_field(schema, &"title"))?,
-            slug: get_first_text(&doc, get_field(schema, &"slug"))?,
-            url: get_first_text(&doc, get_field(schema, &"url"))?,
-            chef_name: get_first_text(&doc, get_field(schema, &"chef_name")),
-            image_name: get_first_text(&doc, get_field(schema, &"image_name")),
+            title: get_first_text(doc, get_field(schema, "title"))?,
+            slug: get_first_text(doc, get_field(schema, "slug"))?,
+            url: get_first_text(doc, get_field(schema, "url"))?,
+            chef_name: get_first_text(doc, get_field(schema, "chef_name")),
+            image_name: get_first_text(doc, get_field(schema, "image_name")),
             ingredients: doc
-                .get_all(get_field(schema, &"ingredient_name"))
-                .iter()
-                .zip(doc.get_all(get_field(schema, &"ingredient_slug")).iter())
+                .get_all(get_field(schema, "ingredient_name"))
+                .zip(doc.get_all(get_field(schema, "ingredient_slug")))
                 .map(|(name, slug)| Ingredient {
-                    name: name.text().unwrap().to_string(),
+                    name: name.as_text().unwrap().to_string(),
                     slug: match slug {
                         Value::Facet(value) => IngredientSlug::from(value).into(),
                         _ => unreachable!(),
@@ -54,14 +53,14 @@ impl Recipe {
 fn get_field(schema: &Schema, name: &str) -> Field {
     schema
         .get_field(name)
-        .unwrap_or_else(|| panic!(format!("Field {} not found in schema", name)))
+        .unwrap_or_else(|| panic!("Field {} not found in schema", name))
 }
 
 fn get_first_text(doc: &Document, field: Field) -> Option<String> {
     Some(
         doc.get_first(field)?
-            .text()
-            .unwrap_or_else(|| panic!(format!("Field {:?} not found", field)))
+            .as_text()
+            .unwrap_or_else(|| panic!("Field {:?} not found", field))
             .to_string(),
     )
 }
@@ -142,27 +141,27 @@ impl From<&str> for IngredientSlug {
     }
 }
 
-impl Into<Facet> for IngredientSlug {
-    fn into(self) -> Facet {
-        (&self).into()
+impl From<&IngredientSlug> for Facet {
+    fn from(slug: &IngredientSlug) -> Self {
+        Facet::from(&format!("/ingredient/{}", slug))
     }
 }
 
-impl Into<Facet> for &IngredientSlug {
-    fn into(self) -> Facet {
-        Facet::from(&format!("/ingredient/{}", self))
+impl From<IngredientSlug> for Facet {
+    fn from(slug: IngredientSlug) -> Self {
+        (&slug).into()
     }
 }
 
-impl Into<String> for &IngredientSlug {
-    fn into(self) -> String {
-        self.0.clone()
+impl From<&IngredientSlug> for String {
+    fn from(slug: &IngredientSlug) -> Self {
+        slug.0.clone()
     }
 }
 
-impl Into<String> for IngredientSlug {
-    fn into(self) -> String {
-        (&self).into()
+impl From<IngredientSlug> for String {
+    fn from(slug: IngredientSlug) -> Self {
+        (&slug).into()
     }
 }
 

@@ -10,7 +10,7 @@ pub(crate) fn encode_share_token(secret: &[u8], uid: u32) -> Result<String, Erro
     let token = format!(
         "{}.{}",
         base64::encode_config(&message, base64::URL_SAFE_NO_PAD),
-        base64::encode_config(&tag.as_ref(), base64::URL_SAFE_NO_PAD)
+        base64::encode_config(tag.as_ref(), base64::URL_SAFE_NO_PAD)
     );
 
     Ok(token)
@@ -61,6 +61,9 @@ mod tests {
 
         let result = decode_share_token(&secret, &bad_token);
         assert!(result.is_err());
-        assert_eq!(format!("{}", invalid_token(Nothing)), format!("{}", result.err().unwrap()));
+        assert_eq!(
+            format!("{}", invalid_token(Nothing)),
+            format!("{}", result.err().unwrap())
+        );
     }
 }

@@ -4,10 +4,10 @@ from flask import current_app
 
 from . import bareshelf_indexer
 from .database import db
-from .models import Recipe, Ingredient
+from .models import Ingredient, Recipe
 
 
-def index():
+def index() -> None:
     path = current_app.config["SEARCH_INDEX_PATH"]
     if not os.path.exists(path):
         os.mkdir(path)

@@ -83,11 +83,11 @@ pub(crate) async fn index(
 
         let mut next_ingredients: Vec<(String, usize)> = recipes
             .next_ingredients()
-            .into_iter()
+            .iter()
             .map(|(slug, count)| (slug.into(), *count))
             .collect();
 
-        if next_ingredients.len() > 0 {
+        if !next_ingredients.is_empty() {
             next_ingredients.sort_by_key(|(_, count)| *count);
             next_ingredients.reverse();
             ctx.insert(
@@ -232,11 +232,11 @@ pub(crate) async fn share_shelf(
 ) -> Result<HttpResponse, Error> {
     let mut ctx = tera::Context::new();
     if let Some(ref token) = share.token {
-        let uid = decode_share_token(&app_data.cookie_key, token)?;
+        let uid = decode_share_token(app_data.cookie_key.encryption(), token)?;
 
         if shelf.uid() != uid {
             session
-                .set("uid", uid)
+                .insert("uid", uid)
                 .map_err(|_| error::ErrorInternalServerError("failed to update shelf"))?;
             shelf
                 .remove_all()
@@ -247,7 +247,7 @@ pub(crate) async fn share_shelf(
         }
     } else {
         let connection_info = req.connection_info();
-        let token = encode_share_token(&app_data.cookie_key, shelf.uid())?;
+        let token = encode_share_token(app_data.cookie_key.encryption(), shelf.uid())?;
         ctx.insert("token", &token);
         ctx.insert(
             "share_url",
@@ -285,9 +285,9 @@ fn get_ingredients_by_prefix(
     bucket: &shelf::Bucket,
     prefix: &str,
 ) -> Result<Vec<bareshelf::Ingredient>, Error> {
-    let existing_ingredients = shelf.get_ingredients(&bucket)?;
+    let existing_ingredients = shelf.get_ingredients(bucket)?;
 
-    let query = IngredientQuery::by_prefix(&prefix).excluding(&existing_ingredients);
+    let query = IngredientQuery::by_prefix(prefix).excluding(&existing_ingredients);
 
     let ingredients = searcher
         .ingredients(query)

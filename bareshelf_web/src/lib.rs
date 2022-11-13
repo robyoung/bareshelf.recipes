@@ -1,8 +1,8 @@
 use std::path::Path;
 
-use actix_session::CookieSession;
-use actix_web::{middleware::Logger, web, App, HttpServer};
-use tera::{Tera, Result as TeraResult};
+use actix_session::{storage::CookieSessionStore, SessionMiddleware};
+use actix_web::{cookie::Key, middleware::Logger, web, App, HttpServer};
+use tera::{Result as TeraResult, Tera};
 
 mod error;
 mod flash;
@@ -34,7 +34,7 @@ fn templates() -> TeraResult<Tera> {
         Ok(mut tera) => {
             tera.add_raw_templates(templates)?;
             Ok(tera)
-        },
+        }
         Err(err) => Err(err),
     }
 }
@@ -45,13 +45,14 @@ fn templates() -> TeraResult<Tera> {
 }
 
 pub(crate) struct AppData {
-    cookie_key: Vec<u8>,
+    cookie_key: Key,
 }
 
 pub async fn run_server() -> std::io::Result<()> {
-    let cookie_key =
-        base64::decode(&std::env::var("COOKIE_SECRET").expect("COOKIE_SECRET is required"))
-            .expect("COOKIE_SECRET is not valid base64");
+    let cookie_key = Key::from(
+        &base64::decode(&std::env::var("COOKIE_SECRET").expect("COOKIE_SECRET is required"))
+            .expect("COOKIE_SECRET is not valid base64"),
+    );
     let app_host = std::env::var("APP_HOST").expect("APP_HOST must be set");
     let tera = templates().unwrap();
     let searcher = bareshelf::searcher(Path::new(
@@ -69,26 +70,26 @@ pub async fn run_server() -> std::io::Result<()> {
 
         App::new()
             .wrap(Logger::default())
-            .wrap(
-                CookieSession::signed(&cookie_key)
-                    .name("glow")
-                    .http_only(true)
-                    .secure(false)
-                    .max_age(60 * 60 * 24 * 30),
-            )
-            .data(AppData { cookie_key })
-            .data(tera)
-            .data(searcher)
-            .data(sled)
+            .wrap(SessionMiddleware::new(
+                CookieSessionStore::default(),
+                cookie_key.clone(),
+            ))
+            .app_data(AppData { cookie_key })
+            .app_data(tera)
+            .app_data(searcher)
+            .app_data(sled)
             .service(web::resource("/status").route(web::get().to(routes::status)))
             .service(
                 web::scope("/")
                     .route("", web::get().to(routes::index))
                     .route("/ingredients", web::get().to(routes::ingredients))
                     .route("/add-ingredient", web::post().to(routes::add_ingredient))
-                    .route("/remove-ingredient", web::post().to(routes::remove_ingredient))
+                    .route(
+                        "/remove-ingredient",
+                        web::post().to(routes::remove_ingredient),
+                    )
                     .route("/share-shelf", web::get().to(routes::share_shelf))
-                    .route("/api/ingredients", web::get().to(routes::api_ingredients))
+                    .route("/api/ingredients", web::get().to(routes::api_ingredients)),
             )
     })
     .bind(app_host)?

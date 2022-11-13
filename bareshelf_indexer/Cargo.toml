@@ -9,9 +9,9 @@ name = "bareshelf_indexer"
 crate-type = ["cdylib"]
 
 [dependencies]
-tantivy = { git = "https://github.com/robyoung/tantivy", branch = "make-tweak-score-mutable-rebased" }
+tantivy = "0.18.1"
 bareshelf = { path = "../bareshelf" }
-pyo3 = "0.9"
+pyo3 = "0.17.3"
 
 [features]
 extension-module = ["pyo3/extension-module"]

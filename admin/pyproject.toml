@@ -18,7 +18,7 @@ Pillow = "^7.1.1"
 [tool.poetry.dev-dependencies]
 black = "^19.10b0"
 flake8 = "^3.7.9"
-mypy = "^0.770"
+mypy = "^0.990"
 ipython = "^7.13.0"
 ipdb = "^0.13.2"
 

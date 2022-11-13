@@ -48,7 +48,7 @@ fn recipes_schema() -> tantivy::schema::Schema {
     schema_builder.add_text_field("url", STORED);
     schema_builder.add_text_field("image_name", STORED);
     schema_builder.add_text_field("chef_name", STORED);
-    schema_builder.add_facet_field("ingredient_slug");
+    schema_builder.add_facet_field("ingredient_slug", ());
     schema_builder.add_text_field("ingredient_name", TEXT | STORED);
     schema_builder.build()
 }

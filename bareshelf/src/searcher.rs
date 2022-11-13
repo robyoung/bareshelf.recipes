@@ -252,7 +252,7 @@ impl Searcher {
                     &self.ingredients_index,
                     &self.ingredients_schema,
                     name_field,
-                    &prefix,
+                    prefix,
                 )
                 .unwrap();
                 Box::new(BooleanQuery::from(
@@ -271,7 +271,7 @@ impl Searcher {
             }
             IngredientQueryBy::Name(name) => Box::new(
                 QueryParser::for_index(&self.ingredients_index, vec![name_field])
-                    .parse_query(&name)
+                    .parse_query(name)
                     .unwrap(),
             ),
             IngredientQueryBy::Slugs(slugs) => {
@@ -303,7 +303,7 @@ impl Searcher {
                     &self.ingredients_index,
                     &self.ingredients_schema,
                     name_field,
-                    &prefix,
+                    prefix,
                 )
                 .unwrap();
                 // Use the same sorting as used by the materialize autocomplete
@@ -330,10 +330,7 @@ impl Searcher {
             _ => {}
         }
         if let Some(excluding) = &query.excluding {
-            top_docs = top_docs
-                .into_iter()
-                .filter(|ingredient| !excluding.contains(ingredient))
-                .collect();
+            top_docs.retain(|ingredient| !excluding.contains(ingredient));
         }
         top_docs
     }
@@ -350,8 +347,20 @@ impl Searcher {
             .iter()
             .map(|(score, doc_id)| {
                 let document = searcher.doc(*doc_id).unwrap();
-                let name = document.get_all(name_field)[0].text().unwrap().to_string();
-                let slug = document.get_all(slug_field)[0].text().unwrap().to_string();
+                let name = document
+                    .get_all(name_field)
+                    .next()
+                    .unwrap()
+                    .as_text()
+                    .unwrap()
+                    .to_string();
+                let slug = document
+                    .get_all(slug_field)
+                    .next()
+                    .unwrap()
+                    .as_text()
+                    .unwrap()
+                    .to_string();
 
                 (*score, Ingredient::new(&name, &slug))
             })
@@ -555,7 +564,11 @@ fn get_query_ords(facets: &[Facet], ingredient_reader: &FacetReader) -> HashSet<
 
     facets
         .iter()
-        .filter_map(|key| facet_dict.term_ord(key.encoded_str()))
+        .filter_map(|key| {
+            facet_dict
+                .term_ord(key.encoded_str())
+                .expect("IO error here implies the index is borked")
+        })
         .collect()
 }
 

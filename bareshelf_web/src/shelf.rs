@@ -1,4 +1,4 @@
-use actix_session::UserSession;
+use actix_session::SessionExt;
 use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
 use futures::future::{ok, Ready};
 use rand::Rng;
@@ -18,9 +18,13 @@ pub(crate) struct Shelf {
 }
 
 impl Shelf {
-    pub(crate) fn add_ingredient(&self, bucket: &Bucket, ingredient: &Ingredient) -> Result<bool, Error> {
+    pub(crate) fn add_ingredient(
+        &self,
+        bucket: &Bucket,
+        ingredient: &Ingredient,
+    ) -> Result<bool, Error> {
         let mut ingredients = self.get_ingredients(bucket)?;
-        if ingredients.iter().find(|&i| i == ingredient).is_none() {
+        if !ingredients.iter().any(|i| i == ingredient) {
             ingredients.push(ingredient.clone());
             ingredients.sort_unstable();
             self.set_ingredients(bucket, ingredients)?;
@@ -30,7 +34,11 @@ impl Shelf {
         }
     }
 
-    pub(crate) fn remove_ingredient(&self, bucket: &Bucket, slug: &str) -> Result<Option<Ingredient>, Error> {
+    pub(crate) fn remove_ingredient(
+        &self,
+        bucket: &Bucket,
+        slug: &str,
+    ) -> Result<Option<Ingredient>, Error> {
         let ingredients = self.get_ingredients(bucket)?;
         let ingredient = ingredients.iter().find(|i| i.slug == slug);
         if let Some(ingredient) = ingredient {
@@ -56,7 +64,13 @@ impl Shelf {
     }
 
     pub(crate) fn remove_all(&self) -> Result<(), Error> {
-        for bucket in [Bucket::KeyIngredients, Bucket::BannedIngredients, Bucket::Ingredients].iter() {
+        for bucket in [
+            Bucket::KeyIngredients,
+            Bucket::BannedIngredients,
+            Bucket::Ingredients,
+        ]
+        .iter()
+        {
             self.sled.remove(self.key(&bucket.session_key()))?;
         }
         Ok(())
@@ -82,14 +96,13 @@ impl Shelf {
 impl FromRequest for Shelf {
     type Error = Error;
     type Future = Ready<Result<Shelf, Error>>;
-    type Config = ();
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let session = req.get_session();
         let uid = session.get("uid").unwrap_or(None).unwrap_or_else(|| {
             let mut rng = rand::thread_rng();
             let uid = rng.gen::<u32>();
-            session.set("uid", uid).unwrap();
+            session.insert("uid", uid).unwrap();
             uid
         });
         let sled = req.app_data::<web::Data<sled::Db>>().unwrap();

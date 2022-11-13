@@ -47,7 +47,8 @@ impl Indexer {
 
     pub fn add_recipe(&mut self, recipe: Recipe) {
         self.recipes_writer
-            .add_document(self.create_recipe_doc(&recipe));
+            .add_document(self.create_recipe_doc(&recipe))
+            .unwrap();
     }
 
     fn create_recipe_doc(&self, recipe: &Recipe) -> tantivy::schema::Document {
@@ -56,10 +57,10 @@ impl Indexer {
         document.add_text(self.recipes_slug, &recipe.slug);
         document.add_text(self.recipes_url, &recipe.url);
         if let Some(chef_name) = &recipe.chef_name {
-            document.add_text(self.recipes_chef_name, &chef_name);
+            document.add_text(self.recipes_chef_name, chef_name);
         }
         if let Some(image_name) = &recipe.image_name {
-            document.add_text(self.recipes_image_name, &image_name);
+            document.add_text(self.recipes_image_name, image_name);
         }
 
         recipe.ingredients.iter().for_each(|ingredient| {
@@ -74,7 +75,8 @@ impl Indexer {
 
     pub fn add_ingredient(&mut self, ingredient: Ingredient) {
         self.ingredients_writer
-            .add_document(self.create_ingredient_doc(&ingredient));
+            .add_document(self.create_ingredient_doc(&ingredient))
+            .unwrap();
     }
 
     fn create_ingredient_doc(&self, ingredient: &Ingredient) -> tantivy::schema::Document {

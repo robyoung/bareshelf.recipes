@@ -29,7 +29,7 @@ enum Command {
 fn main() -> Result<()> {
     let opt = Cli::from_args();
 
-    let searcher = searcher(&opt.path.as_path())?;
+    let searcher = searcher(opt.path.as_path())?;
 
     match opt.command {
         Command::ListIngredients => {

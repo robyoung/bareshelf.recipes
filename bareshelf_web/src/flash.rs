@@ -1,8 +1,8 @@
-use actix_session::UserSession;
+use actix_session::SessionExt;
+use actix_web::body::BoxBody;
 use actix_web::{dev::Payload, FromRequest, HttpRequest, HttpResponse};
 use actix_web::{error, Error, Responder};
-use futures::future::{err, ok, Ready, LocalBoxFuture, TryFutureExt};
-
+use futures::future::{err, ok, Ready};
 
 #[derive(Debug)]
 pub(crate) struct FlashMessage(Option<String>);
@@ -16,7 +16,6 @@ impl FlashMessage {
 impl FromRequest for FlashMessage {
     type Error = Error;
     type Future = Ready<Result<FlashMessage, Error>>;
-    type Config = ();
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let session = req.get_session();
@@ -44,27 +43,21 @@ impl FlashResponse {
 }
 
 impl Responder for FlashResponse {
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<HttpResponse, Self::Error>>;
+    type Body = BoxBody;
 
-    fn respond_to(self, req: &HttpRequest) -> Self::Future {
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
         let session = req.get_session();
         let set_flash = session
-            .set("flash", self.message)
+            .insert("flash", self.message)
             .map_err(|_| error::ErrorInternalServerError("failed to set flash"));
+        if let Err(err) = set_flash {
+            return HttpResponse::from(err);
+        }
 
         let responder = HttpResponse::SeeOther()
-            .header(actix_web::http::header::LOCATION, self.location)
+            .append_header((actix_web::http::header::LOCATION, self.location))
             .finish();
 
-        let out = responder.respond_to(req).err_into().and_then(|res| async {
-            if set_flash.is_err() {
-                Err(set_flash.err().unwrap())
-            } else {
-                Ok(res)
-            }
-        });
-
-        Box::pin(out)
+        responder.respond_to(req)
     }
 }

@@ -42,15 +42,15 @@ struct Recipe {
     ingredients: Vec<Ingredient>,
 }
 
-impl Into<BareshelfRecipe> for Recipe {
-    fn into(self) -> BareshelfRecipe {
+impl From<Recipe> for BareshelfRecipe {
+    fn from(recipe: Recipe) -> Self {
         BareshelfRecipe {
-            title: self.title,
-            slug: self.slug,
-            url: self.url,
-            chef_name: self.chef_name,
-            image_name: self.image_name,
-            ingredients: self.ingredients.iter().cloned().map(Into::into).collect(),
+            title: recipe.title,
+            slug: recipe.slug,
+            url: recipe.url,
+            chef_name: recipe.chef_name,
+            image_name: recipe.image_name,
+            ingredients: recipe.ingredients.iter().cloned().map(Into::into).collect(),
         }
     }
 }
@@ -91,11 +91,11 @@ struct Ingredient {
     slug: String,
 }
 
-impl Into<BareshelfIngredient> for Ingredient {
-    fn into(self) -> BareshelfIngredient {
+impl From<Ingredient> for BareshelfIngredient {
+    fn from(ingredient: Ingredient) -> Self {
         BareshelfIngredient {
-            name: self.name,
-            slug: self.slug,
+            name: ingredient.name,
+            slug: ingredient.slug,
         }
     }
 }
@@ -128,5 +128,5 @@ fn bareshelf_indexer(_py: Python, m: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
-create_exception!(bareshelf_indexer, Error, pyo3::exceptions::Exception);
+create_exception!(bareshelf_indexer, Error, pyo3::exceptions::PyException);
 create_exception!(bareshelf_indexer, IndexError, Error);

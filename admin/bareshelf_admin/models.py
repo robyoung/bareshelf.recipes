@@ -1,5 +1,5 @@
-from typing import Any, Optional
 from datetime import datetime
+from typing import Any, Optional
 
 from sqlalchemy import event
 
@@ -64,7 +64,7 @@ class Ingredient(db.Model, WithSlug, WithURL, Timestamps):  # type: ignore
         return f'<Ingredient "{self.name}">'
 
 
-class Tag(db.Model, WithSlug, Timestamps):
+class Tag(db.Model, WithSlug, Timestamps):  # type: ignore[misc]
     __tablename__ = "tags"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)

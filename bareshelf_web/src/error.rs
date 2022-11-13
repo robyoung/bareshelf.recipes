@@ -12,7 +12,7 @@ impl fmt::Display for Error {
         match *self {
             Error::SerdeJson(ref e) => e.fmt(f),
             Error::Sled(ref e) => e.fmt(f),
-            Error::Other(ref s) => f.write_str(&**s),
+            Error::Other(ref s) => f.write_str(s),
         }
     }
 }

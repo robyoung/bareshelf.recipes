@@ -4,13 +4,13 @@
 #
 # Don't forget to add your pipeline to the ITEM_PIPELINES setting
 # See: https://docs.scrapy.org/en/latest/topics/item-pipeline.html
-from typing import Optional, Any, Mapping
+from typing import Any, Mapping, Optional
 
 import scrapy
 
 from bareshelf_admin.application import create_app
 from bareshelf_admin.database import db
-from bareshelf_admin.models import Recipe, Ingredient, RecipeIngredient
+from bareshelf_admin.models import Ingredient, Recipe, RecipeIngredient
 
 
 class SQLAlchemyPipeline:
@@ -18,7 +18,7 @@ class SQLAlchemyPipeline:
         self.app = create_app()
 
     def process_item(self, item: Mapping, spider: scrapy.Spider) -> Optional[Mapping]:
-        with self.app.app_context():  # type: ignore
+        with self.app.app_context():
             if hasattr(spider, "model"):
                 if not hasattr(spider.model, "get_by_url"):
                     raise ValueError(

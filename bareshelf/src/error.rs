@@ -16,7 +16,7 @@ impl fmt::Display for Error {
         match *self {
             Error::Io(ref e) => e.fmt(f),
             Error::Tantivy(ref e) => e.fmt(f),
-            Error::Other(ref s) => f.write_str(&**s),
+            Error::Other(ref s) => f.write_str(s),
         }
     }
 }

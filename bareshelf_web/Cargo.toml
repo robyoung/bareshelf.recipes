@@ -5,30 +5,30 @@ authors = ["Rob Young <rob@robyoung.digital>"]
 edition = "2018"
 
 [dependencies]
-actix-web = "2.0"
-actix-web-httpauth = "0.4"
-actix-session = "0.3"
-actix-service = "1.0"
-actix-rt = "1.0"
-base64 = "0.11"
-futures = "0.3"
+actix-web = "4.2.1"
+actix-web-httpauth = "0.8.0"
+actix-session = { version = "0.7.2", features = ["cookie-session"] }
+actix-service = "2.0.2"
+actix-rt = "2.7.0"
+base64 = "0.13.1"
+futures = "0.3.25"
 
-env_logger = "0.7"
-log = "0.4"
+env_logger = "0.9.3"
+log = "0.4.17"
 
-tera = "1.2"
+tera = "1.17.1"
 
-serde = "1.0"
-serde_json = "1.0"
+serde = "1.0.147"
+serde_json = "1.0.87"
 
-sled = "0.31"
-rand = "0.7"
+sled = "0.34.7"
+rand = "0.8.5"
 
-url = "2.1"
+url = "2.3.1"
 
 bareshelf = { path = "../bareshelf" }
 
-ring = { version = "0.16", features = [ "std" ] }
+ring = { version = "0.16.20", features = [ "std" ] }
 
 [features]
 default = []
